@@ -1,0 +1,115 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+      args:
+        PUID: ${PUID:-1000}
+        PGID: ${PGID:-1000}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: sqlite:////data/database/app.db
+      REDIS_URL: redis://redis:6379/0
+      TEMP_DIR: /data/temp
+      THUMBNAIL_DIR: /data/thumbnails
+      COOKIE_DIR: /data/cookies
+    volumes:
+      - db_data:/data/database
+      - temp_data:/data/temp
+      - thumbnail_data:/data/thumbnails
+      - cookie_data:/data/cookies
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  worker:
+    build:
+      context: ./backend
+      args:
+        PUID: ${PUID:-1000}
+        PGID: ${PGID:-1000}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: sqlite:////data/database/app.db
+      REDIS_URL: redis://redis:6379/0
+      TEMP_DIR: /data/temp
+      THUMBNAIL_DIR: /data/thumbnails
+      COOKIE_DIR: /data/cookies
+      PYTHONPATH: /app
+    volumes:
+      - db_data:/data/database
+      - temp_data:/data/temp
+      - thumbnail_data:/data/thumbnails
+      - cookie_data:/data/cookies
+    depends_on:
+      api:
+        condition: service_healthy
+    command: ["python", "worker/run.py"]
+    healthcheck:
+      disable: true
+
+  scheduler:
+    build:
+      context: ./backend
+      args:
+        PUID: ${PUID:-1000}
+        PGID: ${PGID:-1000}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: sqlite:////data/database/app.db
+      REDIS_URL: redis://redis:6379/0
+      TEMP_DIR: /data/temp
+      THUMBNAIL_DIR: /data/thumbnails
+      COOKIE_DIR: /data/cookies
+      PYTHONPATH: /app
+    volumes:
+      - db_data:/data/database
+      - temp_data:/data/temp
+      - thumbnail_data:/data/thumbnails
+      - cookie_data:/data/cookies
+    depends_on:
+      api:
+        condition: service_healthy
+    command: ["python", "scheduler/run.py"]
+    healthcheck:
+      disable: true
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  db_data:
+  temp_data:
+  thumbnail_data:
+  cookie_data:
+  redis_data:
