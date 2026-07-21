@@ -3,6 +3,9 @@ node_modules
 out
 .env.local
 .env*.local
+.env.production
+.open-next
+.wrangler
 playwright-report
 test-results
 .DS_Store
