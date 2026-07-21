@@ -1,4 +1,12 @@
+
+FROM denoland/deno:bin-2.9.3 AS deno
+
 FROM python:3.12-slim
+
+COPY --from=deno /deno /usr/local/bin/deno
+
+ENV DENO_NO_UPDATE_CHECK=1
+ENV DENO_NO_PROMPT=1
 
 ARG PUID=1000
 ARG PGID=1000

@@ -1,15 +1,13 @@
 "use client";
 
+import { useParams } from "next/navigation";
 import { useJobPolling } from "@/lib/useJobPolling";
 import { JobItemCard } from "@/components/JobItemCard";
 import { formatDate } from "@/lib/format";
 
-export default function JobProgressPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const { job, error, loading, refetch } = useJobPolling(params.id);
+export default function JobProgressPage() {
+  const { id } = useParams<{ id: string }>();
+  const { job, error, loading, refetch } = useJobPolling(id);
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-4 pt-6">
