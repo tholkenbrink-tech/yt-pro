@@ -1,18 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import type { LibraryItem } from "@/lib/types";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { SourceBadge } from "@/components/SourceBadge";
 import { formatBytes, formatDate, formatDuration } from "@/lib/format";
 
-export default function VideoPlayerPage({
-  params,
-}: {
-  params: { videoId: string };
-}) {
+export default function VideoPlayerPage() {
+  const { videoId } = useParams<{ videoId: string }>();
   const router = useRouter();
   const [item, setItem] = useState<LibraryItem | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +23,7 @@ export default function VideoPlayerPage({
       .library()
       .then((items) => {
         if (cancelled) return;
-        setItem(items.find((i) => i.id === params.videoId) ?? null);
+        setItem(items.find((i) => i.id === videoId) ?? null);
       })
       .catch(() => {
         if (!cancelled) setError("load");
@@ -34,7 +31,7 @@ export default function VideoPlayerPage({
     return () => {
       cancelled = true;
     };
-  }, [params.videoId]);
+  }, [videoId]);
 
   if (item === undefined && !error) {
     return (

@@ -9,7 +9,7 @@ interface LegacyPresentationVideo extends HTMLVideoElement {
 }
 
 interface Props {
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
 }
 
 /**

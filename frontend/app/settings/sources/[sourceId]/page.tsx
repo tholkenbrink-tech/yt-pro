@@ -1,18 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import type { MonitoredSource, SourceCheckRun, SourceDiscoveredItem } from "@/lib/types";
 import { SourceStatusBadge } from "@/components/SourceStatusBadge";
 import { sourceModeLabel, sourceScheduleLabel } from "@/lib/sourceStatusLabels";
 import { formatDate, formatDuration } from "@/lib/format";
 
-export default function SourceDetailPage({
-  params,
-}: {
-  params: { sourceId: string };
-}) {
+export default function SourceDetailPage() {
+  const { sourceId } = useParams<{ sourceId: string }>();
   const router = useRouter();
   const [source, setSource] = useState<MonitoredSource | null>(null);
   const [items, setItems] = useState<SourceDiscoveredItem[]>([]);
@@ -22,18 +19,18 @@ export default function SourceDetailPage({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const load = () => {
-    api.getSource(params.sourceId).then(setSource).catch(() => setError("load"));
-    api.sourceItems(params.sourceId).then(setItems).catch(() => undefined);
-    api.sourceRuns(params.sourceId).then(setRuns).catch(() => undefined);
+    api.getSource(sourceId).then(setSource).catch(() => setError("load"));
+    api.sourceItems(sourceId).then(setItems).catch(() => undefined);
+    api.sourceRuns(sourceId).then(setRuns).catch(() => undefined);
   };
 
-  useEffect(load, [params.sourceId]);
+  useEffect(load, [sourceId]);
 
   const checkNow = async () => {
     setBusy(true);
     setStatusMessage(null);
     try {
-      const updated = await api.checkSourceNow(params.sourceId);
+      const updated = await api.checkSourceNow(sourceId);
       setSource(updated);
       setStatusMessage("Prüfung gestartet.");
     } finally {
@@ -66,12 +63,12 @@ export default function SourceDetailPage({
   };
 
   const prepareItem = async (itemId: string) => {
-    await api.prepareSourceItem(params.sourceId, itemId);
+    await api.prepareSourceItem(sourceId, itemId);
     load();
   };
 
   const ignoreItem = async (itemId: string) => {
-    await api.ignoreSourceItem(params.sourceId, itemId);
+    await api.ignoreSourceItem(sourceId, itemId);
     load();
   };
 
