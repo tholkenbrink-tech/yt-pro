@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import type { Job } from "@/lib/types";
 import { isActiveStatus } from "@/lib/statusLabels";
 import { StatusPill } from "@/components/StatusPill";
+import { Skeleton } from "@/components/Skeleton";
 
 export default function ActivityPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -37,13 +38,28 @@ export default function ActivityPage() {
     <main className="mx-auto max-w-lg px-4 pb-4 pt-6">
       <h1 className="mb-4 text-page-title">Aktivität</h1>
 
-      {loading && <p className="text-sm text-text-muted">Wird geladen...</p>}
+      {loading && (
+        <ul className="space-y-2" aria-hidden="true">
+          {[0, 1, 2].map((i) => (
+            <li key={i} className="flex items-center gap-3 rounded-md border border-border p-3">
+              <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/3" />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
       {error && <p className="text-sm text-error">{error}</p>}
 
       {!loading && jobs.length === 0 && !error && (
-        <p className="text-sm text-text-muted">
-          Keine Vorgänge vorhanden. Starte einen Download unter &quot;Download&quot;.
-        </p>
+        <div>
+          <p className="text-sm font-medium text-text-primary">Keine aktiven Downloads</p>
+          <p className="mt-1 text-sm text-text-muted">
+            Neue Downloads erscheinen hier und laufen auf dem Server weiter.
+          </p>
+        </div>
       )}
 
       {active.length > 0 && (

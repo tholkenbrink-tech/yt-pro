@@ -8,6 +8,8 @@ import { LegalNoticeModal } from "@/components/LegalNoticeModal";
 import { StorageStrip } from "@/components/StorageStrip";
 import { ActiveJobsList } from "@/components/ActiveJobsList";
 import { AddToHomeScreen } from "@/components/AddToHomeScreen";
+import { Skeleton } from "@/components/Skeleton";
+import { useToast } from "@/components/ToastProvider";
 
 export default function DownloadPage() {
   const router = useRouter();
@@ -15,6 +17,7 @@ export default function DownloadPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastQuality, setLastQualityState] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     setLastQualityState(getLastQuality());
@@ -25,9 +28,12 @@ export default function DownloadPage() {
       const clipboardText = await navigator.clipboard.readText();
       if (clipboardText) {
         setText((prev) => (prev ? `${prev}\n${clipboardText}` : clipboardText));
+        showToast("Link eingefügt");
       }
     } catch {
-      setError("Zugriff auf die Zwischenablage nicht möglich.");
+      // Clipboard access can be unavailable (permission denied, insecure
+      // context, unsupported browser) - fail gracefully without a
+      // technical error, per the design brief's "smart paste" guidance.
     }
   };
 
@@ -48,11 +54,19 @@ export default function DownloadPage() {
       savePendingAnalysis(result, lines[0]);
       router.push("/download/preview");
     } catch (e) {
-      setError(
-        e instanceof ApiError
-          ? "Analyse fehlgeschlagen. Bitte Link(s) prüfen."
-          : "Netzwerkfehler bei der Analyse."
-      );
+      if (e instanceof ApiError && e.status === 400) {
+        // Backend's InvalidUrlError/PlaylistTooLargeError both surface as
+        // 400 - this is the "link not supported" case from the design brief.
+        setError("Dieser Link wird nicht unterstützt. Bitte füge einen gültigen YouTube-Link ein.");
+      } else if (e instanceof ApiError) {
+        // yt-dlp itself failed to analyze the URL (502) - the video is most
+        // likely gone, private, or region-locked rather than a client bug.
+        setError(
+          "Video nicht verfügbar. Das Video wurde möglicherweise entfernt, ist privat oder kann in deiner Region nicht geladen werden."
+        );
+      } else {
+        setError("Netzwerkfehler bei der Analyse.");
+      }
     } finally {
       setLoading(false);
     }
@@ -95,13 +109,27 @@ export default function DownloadPage() {
         </button>
       </div>
 
-      {lastQuality && (
+      {lastQuality && !loading && (
         <p className="mx-4 mb-3 text-meta text-text-muted">
           Zuletzt verwendete Qualität: {lastQuality}
         </p>
       )}
 
       {error && <p className="mx-4 mb-3 text-sm text-error">{error}</p>}
+
+      {loading && (
+        <div className="mx-4 mb-3 rounded-md border border-border bg-surface p-3" aria-hidden="true">
+          <p className="mb-2 text-sm font-medium text-text-secondary">Video wird analysiert</p>
+          <div className="flex items-start gap-3">
+            <Skeleton className="h-[63px] w-28 shrink-0" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-3 w-2/5" />
+              <Skeleton className="h-3 w-3/5" />
+            </div>
+          </div>
+        </div>
+      )}
 
       <AddToHomeScreen />
       <StorageStrip />

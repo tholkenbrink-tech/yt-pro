@@ -7,6 +7,8 @@ import { api } from "@/lib/api";
 import { formatBytes, formatCountdown, formatDuration } from "@/lib/format";
 import { conversionNoteLabel } from "@/lib/statusLabels";
 import { IOSSaveInstructions } from "./IOSSaveInstructions";
+import { ConfirmationDialog } from "./ConfirmationDialog";
+import { useToast } from "./ToastProvider";
 
 const SEEN_INSTRUCTIONS_KEY = "yt-pro:ios-instructions-seen";
 
@@ -17,7 +19,9 @@ interface Props {
 
 export function DownloadCard({ item, onChanged }: Props) {
   const [showInstructions, setShowInstructions] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const { showToast } = useToast();
 
   const handleFirstTap = () => {
     if (typeof window === "undefined") return;
@@ -41,6 +45,8 @@ export function DownloadCard({ item, onChanged }: Props) {
     setBusy(true);
     try {
       await api.deleteHistoryItem(item.id);
+      setShowDeleteConfirm(false);
+      showToast("Datei vom Server gelöscht");
       onChanged?.();
     } finally {
       setBusy(false);
@@ -105,7 +111,7 @@ export function DownloadCard({ item, onChanged }: Props) {
         <button
           type="button"
           disabled={busy}
-          onClick={deleteFromServer}
+          onClick={() => setShowDeleteConfirm(true)}
           className="flex-1 rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 disabled:opacity-50 dark:border-red-900 dark:text-red-400"
         >
           Vom Server löschen
@@ -115,6 +121,17 @@ export function DownloadCard({ item, onChanged }: Props) {
       {showInstructions && (
         <IOSSaveInstructions onClose={() => setShowInstructions(false)} />
       )}
+
+      <ConfirmationDialog
+        open={showDeleteConfirm}
+        title="Datei vom Server löschen?"
+        description="Die Datei wird endgültig vom Server entfernt und steht nicht mehr zum Download bereit."
+        confirmLabel="Löschen"
+        destructive
+        busy={busy}
+        onConfirm={deleteFromServer}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }

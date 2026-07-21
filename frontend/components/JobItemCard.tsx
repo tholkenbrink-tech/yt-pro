@@ -5,6 +5,7 @@ import Image from "next/image";
 import type { JobItem } from "@/lib/types";
 import { StatusPill } from "./StatusPill";
 import { DownloadCard } from "./DownloadCard";
+import { ConfirmationDialog } from "./ConfirmationDialog";
 import { api } from "@/lib/api";
 import {
   formatBytes,
@@ -13,6 +14,9 @@ import {
   formatSpeed,
 } from "@/lib/format";
 
+const GENERIC_FAILURE_EXPLANATION =
+  "Das Video ist möglicherweise nicht verfügbar oder die Verbindung wurde unterbrochen.";
+
 interface Props {
   item: JobItem;
   onChanged?: () => void;
@@ -20,6 +24,7 @@ interface Props {
 
 export function JobItemCard({ item, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   if (item.status === "ready" || item.status === "downloaded_to_device") {
     return <DownloadCard item={item} onChanged={onChanged} />;
@@ -38,6 +43,7 @@ export function JobItemCard({ item, onChanged }: Props) {
     setBusy(true);
     try {
       await api.cancelJob(item.id);
+      setShowCancelConfirm(false);
       onChanged?.();
     } finally {
       setBusy(false);
@@ -92,9 +98,9 @@ export function JobItemCard({ item, onChanged }: Props) {
         </div>
       </div>
 
-      {item.errorMessage && (
+      {item.status === "failed" && (
         <p className="mt-2 text-sm text-red-600 dark:text-red-400">
-          {item.errorMessage}
+          {item.errorMessage || GENERIC_FAILURE_EXPLANATION}
         </p>
       )}
 
@@ -109,7 +115,7 @@ export function JobItemCard({ item, onChanged }: Props) {
             <button
               type="button"
               disabled={busy}
-              onClick={doCancel}
+              onClick={() => setShowCancelConfirm(true)}
               className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium disabled:opacity-50 dark:border-gray-700"
             >
               Abbrechen
@@ -127,6 +133,18 @@ export function JobItemCard({ item, onChanged }: Props) {
           )}
         </div>
       )}
+
+      <ConfirmationDialog
+        open={showCancelConfirm}
+        title="Download abbrechen?"
+        description="Der Vorgang wird gestoppt und bereits geladene Daten für dieses Video gehen verloren."
+        confirmLabel="Ja, abbrechen"
+        cancelLabel="Weiterlaufen lassen"
+        destructive
+        busy={busy}
+        onConfirm={doCancel}
+        onCancel={() => setShowCancelConfirm(false)}
+      />
     </div>
   );
 }

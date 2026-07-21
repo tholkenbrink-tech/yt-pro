@@ -7,11 +7,13 @@ import {
   setDownloadSettings,
   type DownloadSettings,
 } from "@/lib/localSettings";
+import { useToast } from "@/components/ToastProvider";
 
 const QUALITIES = ["1080p", "720p", "480p"];
 
 export default function DownloadSettingsPage() {
   const [settings, setSettings] = useState<DownloadSettings>(DEFAULT_DOWNLOAD_SETTINGS);
+  const { showToast } = useToast();
 
   useEffect(() => {
     setSettings(getDownloadSettings());
@@ -21,6 +23,7 @@ export default function DownloadSettingsPage() {
     const next = { ...settings, ...patch };
     setSettings(next);
     setDownloadSettings(patch);
+    showToast("Einstellung gespeichert");
   };
 
   return (

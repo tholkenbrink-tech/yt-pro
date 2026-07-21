@@ -10,6 +10,7 @@ import {
   setStorageSettings,
   type StorageSettings,
 } from "@/lib/localSettings";
+import { useToast } from "@/components/ToastProvider";
 
 const RETENTION_OPTIONS: { value: number | null; label: string }[] = [
   { value: 1, label: "1 Stunde" },
@@ -24,6 +25,7 @@ export default function StorageSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [local, setLocal] = useState<StorageSettings>(DEFAULT_STORAGE_SETTINGS);
+  const { showToast } = useToast();
 
   const load = () => {
     api
@@ -43,6 +45,7 @@ export default function StorageSettingsPage() {
     try {
       const updated = await api.setRetention(hours);
       setStorage(updated);
+      showToast("Einstellung gespeichert");
     } catch {
       setError("Aufbewahrungsdauer konnte nicht geändert werden.");
     } finally {
@@ -54,6 +57,7 @@ export default function StorageSettingsPage() {
     const next = { ...local, ...patch };
     setLocal(next);
     setStorageSettings(patch);
+    showToast("Einstellung gespeichert");
   };
 
   return (
@@ -68,8 +72,8 @@ export default function StorageSettingsPage() {
           <p>Frei: {formatBytes(storage.freeBytes)}</p>
           {storage.lowSpaceWarning && (
             <p className="mt-2 text-error">
-              Zu wenig Speicherplatz. Lösche Videos oder passe die
-              Aufbewahrungsdauer an.
+              <span className="font-medium">Zu wenig Speicherplatz.</span> Lösche
+              vorbereitete Dateien oder vergrößere den verfügbaren Speicher.
             </p>
           )}
         </div>

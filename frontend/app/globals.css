@@ -5,6 +5,12 @@
 :root {
   color-scheme: light dark;
 
+  /* Live-measured height of the fixed mobile bottom nav (0 on md+, where the
+     nav is display:none). Sticky action bars read this so they float just
+     above the nav instead of guessing a fixed pixel offset. Set by
+     MobileBottomNavigation via ResizeObserver. */
+  --mobile-nav-height: 0px;
+
   --color-background: #f7f7fb;
   --color-surface: #ffffff;
   --color-surface-elevated: #ffffff;
@@ -121,4 +127,86 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ---- Skeleton loaders ---- */
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--color-border);
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.28),
+    transparent
+  );
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Falls back to a static muted block instead of a moving shimmer. */
+  .skeleton::after {
+    display: none;
+  }
+}
+
+/* ---- Toast / dialog / sheet motion ---- */
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.toast-enter {
+  animation: toast-in 200ms ease-out;
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.dialog-enter {
+  animation: dialog-in 180ms ease-out;
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sheet-enter {
+  animation: sheet-in 220ms ease-out;
 }

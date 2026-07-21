@@ -13,6 +13,8 @@ import {
 import type { AnalysisResult } from "@/lib/types";
 import { QualitySelector } from "@/components/QualitySelector";
 import { PlaylistItemList } from "@/components/PlaylistItemList";
+import { BottomActionBar } from "@/components/BottomActionBar";
+import { useToast } from "@/components/ToastProvider";
 import { formatBytes, formatDate, formatDuration } from "@/lib/format";
 
 const DEFAULT_QUALITY = "720p";
@@ -29,6 +31,7 @@ export default function DownloadPreviewPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const pending = loadPendingAnalysis();
@@ -62,6 +65,13 @@ export default function DownloadPreviewPage() {
     });
   };
 
+  const selectAll = () => {
+    if (!data || data.result.kind !== "playlist") return;
+    setSelectedIds(new Set(data.result.items.map((i) => i.youtubeId)));
+  };
+
+  const deselectAll = () => setSelectedIds(new Set());
+
   const showPlaylistWarning = useMemo(() => {
     if (!data || data.result.kind !== "playlist") return false;
     return (
@@ -69,6 +79,17 @@ export default function DownloadPreviewPage() {
       data.result.totalDuration > PLAYLIST_DURATION_WARNING_THRESHOLD
     );
   }, [data]);
+
+  // No per-item size is returned by the analyze endpoint for playlists (only
+  // the overall estimatedTotalSize) - approximating an even split across
+  // items rather than inventing a new API call, per the design brief's
+  // request to reuse data the backend already provides.
+  const estimatedSelectedSize = useMemo(() => {
+    if (!data || data.result.kind !== "playlist") return 0;
+    const { itemCount, estimatedTotalSize } = data.result;
+    if (itemCount <= 0) return 0;
+    return (estimatedTotalSize / itemCount) * selectedIds.size;
+  }, [data, selectedIds]);
 
   if (!data) return null;
   const { result, sourceUrl } = data;
@@ -88,6 +109,7 @@ export default function DownloadPreviewPage() {
           : { sourceUrl, selectedQuality: quality };
       const { jobId } = await api.createJob(payload);
       clearPendingAnalysis();
+      showToast("Download gestartet");
       router.push(`/activity/${jobId}`);
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
@@ -104,77 +126,100 @@ export default function DownloadPreviewPage() {
     }
   };
 
+  const allSelected = result.kind === "playlist" && selectedIds.size === result.items.length;
+
   return (
-    <main className="mx-auto max-w-lg px-4 pb-4 pt-6">
-      {result.kind === "single" ? (
-        <>
-          <h1 className="mb-4 text-section-title">Video-Vorschau</h1>
-          <Image
-            src={result.thumbnail}
-            alt=""
-            width={640}
-            height={360}
-            unoptimized
-            className="w-full rounded-md object-cover"
-          />
-          <h2 className="mt-3 text-card-title">{result.title}</h2>
-          <p className="text-sm text-text-secondary">
-            {result.channelName} - {formatDuration(result.duration)} -{" "}
-            {formatDate(result.uploadDate)}
-          </p>
-
-          <h3 className="mb-2 mt-4 text-sm font-semibold">Qualität</h3>
-          <QualitySelector
-            qualities={result.availableQualities}
-            selected={quality}
-            onSelect={setQuality}
-          />
-        </>
-      ) : (
-        <>
-          <h1 className="mb-4 text-section-title">Playlist-Vorschau</h1>
-          <Image
-            src={result.thumbnail}
-            alt=""
-            width={640}
-            height={360}
-            unoptimized
-            className="w-full rounded-md object-cover"
-          />
-          <h2 className="mt-3 text-card-title">{result.playlistTitle}</h2>
-          <p className="text-sm text-text-secondary">
-            {result.itemCount} Videos - {formatDuration(result.totalDuration)} gesamt -{" "}
-            {formatBytes(result.estimatedTotalSize)} geschätzt
-          </p>
-
-          {showPlaylistWarning && (
-            <p className="mt-3 rounded-md bg-warning/10 p-3 text-sm text-warning">
-              Diese Playlist ist groß. Das Herunterladen aller Videos kann
-              lange dauern und viel Speicherplatz belegen.
+    <>
+      <main className="mx-auto max-w-lg px-4 pb-32 pt-6">
+        {result.kind === "single" ? (
+          <>
+            <h1 className="mb-4 text-section-title">Video-Vorschau</h1>
+            <Image
+              src={result.thumbnail}
+              alt=""
+              width={640}
+              height={360}
+              unoptimized
+              className="w-full rounded-md object-cover"
+            />
+            <h2 className="mt-3 text-card-title">{result.title}</h2>
+            <p className="text-sm text-text-secondary">
+              {result.channelName} - {formatDuration(result.duration)} -{" "}
+              {formatDate(result.uploadDate)}
             </p>
-          )}
 
-          <h3 className="mb-2 mt-4 text-sm font-semibold">Videos auswählen</h3>
-          <PlaylistItemList
-            items={result.items}
-            selectedIds={selectedIds}
-            onToggle={toggleItem}
-          />
-        </>
-      )}
+            <h3 className="mb-2 mt-4 text-sm font-semibold">Qualität</h3>
+            <QualitySelector
+              qualities={result.availableQualities}
+              selected={quality}
+              onSelect={setQuality}
+            />
+          </>
+        ) : (
+          <>
+            <h1 className="mb-4 text-section-title">Playlist-Vorschau</h1>
+            <Image
+              src={result.thumbnail}
+              alt=""
+              width={640}
+              height={360}
+              unoptimized
+              className="w-full rounded-md object-cover"
+            />
+            <h2 className="mt-3 text-card-title">{result.playlistTitle}</h2>
+            <p className="text-sm text-text-secondary">
+              {result.itemCount} Videos - {formatDuration(result.totalDuration)} gesamt -{" "}
+              {formatBytes(result.estimatedTotalSize)} geschätzt
+            </p>
 
-      {error && <p className="mt-3 text-sm text-error">{error}</p>}
+            {showPlaylistWarning && (
+              <p className="mt-3 rounded-md bg-warning/10 p-3 text-sm text-warning">
+                Diese Playlist ist groß. Das Herunterladen aller Videos kann
+                lange dauern und viel Speicherplatz belegen.
+              </p>
+            )}
 
-      <button
-        type="button"
-        onClick={startPreparation}
-        disabled={
-          submitting || (result.kind === "playlist" && selectedIds.size === 0)
-        }
-        className="mt-5 min-h-11 w-full rounded-md bg-accent px-4 py-3 font-medium text-white disabled:opacity-50"
-      >
-        {submitting ? "Wird gestartet..." : "Vorbereitung starten"}
-      </button>
-    </main>
+            <div className="mb-2 mt-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Videos auswählen</h3>
+              <button
+                type="button"
+                onClick={allSelected ? deselectAll : selectAll}
+                className="min-h-11 rounded-md px-2 text-sm font-medium text-accent"
+              >
+                {allSelected ? "Alle abwählen" : "Alle auswählen"}
+              </button>
+            </div>
+            <PlaylistItemList
+              items={result.items}
+              selectedIds={selectedIds}
+              onToggle={toggleItem}
+            />
+          </>
+        )}
+
+        {error && <p className="mt-3 text-sm text-error">{error}</p>}
+      </main>
+
+      <BottomActionBar>
+        {result.kind === "playlist" && (
+          <div className="mb-2 flex items-center justify-between text-sm text-text-secondary">
+            <span>{selectedIds.size} von {result.items.length} ausgewählt</span>
+            <span>{formatBytes(estimatedSelectedSize)} geschätzt</span>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={startPreparation}
+          disabled={submitting || (result.kind === "playlist" && selectedIds.size === 0)}
+          className="min-h-11 w-full rounded-md bg-accent px-4 py-3 font-medium text-white disabled:opacity-50"
+        >
+          {submitting
+            ? "Wird gestartet..."
+            : result.kind === "playlist"
+              ? `${selectedIds.size} Video${selectedIds.size === 1 ? "" : "s"} vorbereiten`
+              : "Download vorbereiten"}
+        </button>
+      </BottomActionBar>
+    </>
   );
 }

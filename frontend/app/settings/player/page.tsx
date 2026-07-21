@@ -7,6 +7,7 @@ import {
   setPlayerSettings,
   type PlayerSettings,
 } from "@/lib/playerSettings";
+import { useToast } from "@/components/ToastProvider";
 
 const TOGGLES: { key: keyof PlayerSettings; label: string }[] = [
   { key: "autoResume", label: "Automatisch fortsetzen" },
@@ -19,6 +20,7 @@ const TOGGLES: { key: keyof PlayerSettings; label: string }[] = [
 
 export default function PlayerSettingsPage() {
   const [settings, setSettings] = useState<PlayerSettings>(DEFAULT_PLAYER_SETTINGS);
+  const { showToast } = useToast();
 
   useEffect(() => {
     setSettings(getPlayerSettings());
@@ -28,6 +30,7 @@ export default function PlayerSettingsPage() {
     const next = { ...settings, [key]: !settings[key] };
     setSettings(next);
     setPlayerSettings({ [key]: next[key] });
+    showToast("Einstellung gespeichert");
   };
 
   return (

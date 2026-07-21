@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
 import type { StorageInfo } from "@/lib/types";
+import { Skeleton } from "./Skeleton";
 
 export function StorageStrip({ compact = false }: { compact?: boolean }) {
   const [storage, setStorage] = useState<StorageInfo | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -17,11 +19,37 @@ export function StorageStrip({ compact = false }: { compact?: boolean }) {
       })
       .catch(() => {
         /* silently ignore - non-critical widget */
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  if (loading) {
+    return compact ? (
+      <div className="text-xs" aria-hidden="true">
+        <div className="mb-1 flex items-center justify-between">
+          <Skeleton className="h-3 w-12" />
+          <Skeleton className="h-3 w-16" />
+        </div>
+        <Skeleton className="h-1.5 w-full rounded-full" />
+      </div>
+    ) : (
+      <div
+        className="mx-4 mb-4 rounded-lg border border-border p-3 text-sm"
+        aria-hidden="true"
+      >
+        <div className="mb-2 flex items-center justify-between">
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-28" />
+        </div>
+        <Skeleton className="h-2 w-full rounded-full" />
+      </div>
+    );
+  }
 
   if (!storage) return null;
 
@@ -63,7 +91,8 @@ export function StorageStrip({ compact = false }: { compact?: boolean }) {
       </div>
       {storage.lowSpaceWarning && (
         <p className="mt-2 text-red-600 dark:text-red-400">
-          Wenig freier Speicher - ältere Downloads werden ggf. früher gelöscht.
+          <span className="font-medium">Zu wenig Speicherplatz.</span> Lösche
+          vorbereitete Dateien oder vergrößere den verfügbaren Speicher.
         </p>
       )}
     </div>

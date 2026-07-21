@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import type { CookieStatus, CookieTestResult } from "@/lib/types";
 import { getTheme, setTheme as persistTheme } from "@/lib/theme";
+import { useToast } from "@/components/ToastProvider";
 
 type ThemeValue = "system" | "light" | "dark";
 
@@ -27,6 +28,7 @@ export default function SettingsPage() {
   const [testing, setTesting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [cookieError, setCookieError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     setThemeState(getTheme());
@@ -39,6 +41,7 @@ export default function SettingsPage() {
   const changeTheme = (value: ThemeValue) => {
     setThemeState(value);
     persistTheme(value);
+    showToast("Einstellung gespeichert");
   };
 
   const testConnection = async () => {

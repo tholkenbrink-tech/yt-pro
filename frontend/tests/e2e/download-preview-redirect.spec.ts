@@ -71,7 +71,7 @@ test.describe("Phase 1 regression: analyze -> preview -> prepare -> download", (
     await expect(page).toHaveURL(/\/download\/preview$/);
     await expect(page.getByText("Beispielvideo")).toBeVisible();
 
-    await page.getByRole("button", { name: "Vorbereitung starten" }).click();
+    await page.getByRole("button", { name: "Download vorbereiten" }).click();
     await expect(page).toHaveURL(/\/activity\/job-1$/);
   });
 });

@@ -8,6 +8,8 @@ import type { LibraryItem } from "@/lib/types";
 import { deriveMediaState } from "@/lib/mediaStateConfig";
 import { MediaStatusBadge } from "./MediaStatusBadge";
 import { SourceBadge } from "./SourceBadge";
+import { ConfirmationDialog } from "./ConfirmationDialog";
+import { useToast } from "./ToastProvider";
 import { formatBytes, formatDate, formatDuration } from "@/lib/format";
 
 interface Props {
@@ -17,6 +19,8 @@ interface Props {
 
 export function MediaCard({ item, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const { showToast } = useToast();
   const state = deriveMediaState(item);
   const hasProgress = Boolean(item.progress && !item.progress.completed && item.progress.positionSeconds > 0);
   const progressPct = item.progress?.percentage ?? 0;
@@ -25,6 +29,18 @@ export function MediaCard({ item, onChanged }: Props) {
     setBusy(true);
     try {
       await fn();
+      onChanged?.();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteFromServer = async () => {
+    setBusy(true);
+    try {
+      await api.deleteHistoryItem(item.id);
+      setShowDeleteConfirm(false);
+      showToast("Datei vom Server gelöscht");
       onChanged?.();
     } finally {
       setBusy(false);
@@ -106,7 +122,7 @@ export function MediaCard({ item, onChanged }: Props) {
         <button
           type="button"
           disabled={busy}
-          onClick={() => run(() => api.deleteHistoryItem(item.id))}
+          onClick={() => setShowDeleteConfirm(true)}
           className="min-h-11 rounded-md border border-error/40 px-3 py-2 text-sm font-medium text-error disabled:opacity-50"
         >
           Vom Server löschen
@@ -122,6 +138,17 @@ export function MediaCard({ item, onChanged }: Props) {
           </a>
         )}
       </div>
+
+      <ConfirmationDialog
+        open={showDeleteConfirm}
+        title="Datei vom Server löschen?"
+        description="Die Datei wird endgültig vom Server entfernt und steht nicht mehr zum Download bereit."
+        confirmLabel="Löschen"
+        destructive
+        busy={busy}
+        onConfirm={deleteFromServer}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }

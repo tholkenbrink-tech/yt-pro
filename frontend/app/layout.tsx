@@ -4,6 +4,7 @@ import { OfflineBanner } from "@/components/OfflineBanner";
 import { AppShell } from "@/components/AppShell";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { ThemeInit } from "@/components/ThemeInit";
+import { ToastProvider } from "@/components/ToastProvider";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 export const metadata: Metadata = {
@@ -47,7 +48,9 @@ export default function RootLayout({
         <ThemeInit />
         <ServiceWorkerRegister />
         <OfflineBanner />
-        <AppShell>{children}</AppShell>
+        <ToastProvider>
+          <AppShell>{children}</AppShell>
+        </ToastProvider>
       </body>
     </html>
   );
