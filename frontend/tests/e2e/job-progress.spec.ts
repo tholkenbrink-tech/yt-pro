@@ -1,10 +1,10 @@
 import { test, expect } from "@playwright/test";
 import { mockApi } from "./mockApi";
 
-test.describe("Job progress page", () => {
+test.describe("Activity detail page (moved from /jobs/[id])", () => {
   test("shows live progress details for an in-progress item", async ({ page }) => {
     await mockApi(page);
-    await page.goto("/jobs/job-1");
+    await page.goto("/activity/job-1");
 
     await expect(page.getByText("Beispielvideo für Tests")).toBeVisible();
     await expect(page.getByText("Video wird geladen").first()).toBeVisible();
@@ -13,7 +13,7 @@ test.describe("Job progress page", () => {
 
   test("never renders a play/video-playback control", async ({ page }) => {
     await mockApi(page);
-    await page.goto("/jobs/job-1");
+    await page.goto("/activity/job-1");
     await expect(page.locator("video")).toHaveCount(0);
   });
 
@@ -44,7 +44,7 @@ test.describe("Job progress page", () => {
         ],
       },
     });
-    await page.goto("/jobs/job-1");
+    await page.goto("/activity/job-1");
 
     const link = page.getByRole("link", { name: "Auf iPhone laden" });
     await expect(link).toBeVisible();
@@ -54,5 +54,11 @@ test.describe("Job progress page", () => {
       /\/api\/items\/item-1\/download/
     );
     await expect(page.getByText("Für iPhone wird konvertiert")).toBeVisible();
+  });
+
+  test("old /jobs/[id] route redirects to /activity/[jobId]", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/jobs/job-1");
+    await expect(page).toHaveURL(/\/activity\/job-1$/);
   });
 });

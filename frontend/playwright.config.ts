@@ -12,6 +12,12 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "retain-on-failure",
+    // The app's own service worker (public/sw.js) has a fetch handler that
+    // ends up swallowing non-GET requests before Playwright's page.route
+    // can see them, making mutating calls (POST/PUT/DELETE) impossible to
+    // mock. Blocking service workers only affects the test browser context,
+    // not the real PWA.
+    serviceWorkers: "block",
   },
   webServer: {
     command: "npm run build && npm run start -- -p " + PORT,

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Float, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -34,5 +34,17 @@ class DownloadItem(Base, TimestampMixin):
     deletedFromServerAt: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     expiresAt: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     errorMessage: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+
+    # Phase 2 additive columns -- automatic/monitored-source support. Never rename
+    # `activeStreams`, it already serves the spec's "activeStreamCount" purpose.
+    sourceType: Mapped[str] = mapped_column(String(32), default="video", nullable=False)
+    monitoredSourceId: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("monitored_sources.id"), nullable=True
+    )
+    originalPlaylistId: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    isAutomaticallyPrepared: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    retentionPolicy: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    keepOnServer: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    lastStreamedAt: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
     job: Mapped["DownloadJob"] = relationship(back_populates="items")

@@ -1,84 +1,187 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
-import type { StorageInfo } from "@/lib/types";
-import { formatBytes } from "@/lib/format";
+import type { CookieStatus, CookieTestResult } from "@/lib/types";
+import { getTheme, setTheme as persistTheme } from "@/lib/theme";
 
-const RETENTION_OPTIONS: { value: number | null; label: string }[] = [
-  { value: 1, label: "1 Stunde" },
-  { value: 6, label: "6 Stunden" },
-  { value: 24, label: "24 Stunden" },
-  { value: 72, label: "3 Tage" },
-  { value: null, label: "Manuell löschen" },
+type ThemeValue = "system" | "light" | "dark";
+
+const THEME_OPTIONS: { value: ThemeValue; label: string }[] = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Hell" },
+  { value: "dark", label: "Dunkel" },
 ];
 
-export default function SettingsPage() {
-  const [storage, setStorage] = useState<StorageInfo | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const COOKIE_STATUS_LABELS: Record<string, string> = {
+  not_configured: "Nicht eingerichtet",
+  valid: "Gültig",
+  expired: "Abgelaufen",
+};
 
-  const load = () => {
+export default function SettingsPage() {
+  const [theme, setThemeState] = useState<ThemeValue>("system");
+  const [cookieStatus, setCookieStatus] = useState<CookieStatus | null>(null);
+  const [testResult, setTestResult] = useState<CookieTestResult | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [cookieError, setCookieError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setThemeState(getTheme());
     api
-      .storage()
-      .then(setStorage)
-      .catch(() => setError("Speicherinformationen konnten nicht geladen werden."));
+      .cookieStatus()
+      .then(setCookieStatus)
+      .catch(() => setCookieError("Status konnte nicht geladen werden."));
+  }, []);
+
+  const changeTheme = (value: ThemeValue) => {
+    setThemeState(value);
+    persistTheme(value);
   };
 
-  useEffect(load, []);
-
-  const changeRetention = async (hours: number | null) => {
-    setSaving(true);
-    setError(null);
+  const testConnection = async () => {
+    setTesting(true);
+    setTestResult(null);
     try {
-      const updated = await api.setRetention(hours);
-      setStorage(updated);
+      const result = await api.testCookies();
+      setTestResult(result);
     } catch {
-      setError("Aufbewahrungsdauer konnte nicht geändert werden.");
+      setTestResult({ status: "error", message: "Verbindung konnte nicht getestet werden." });
     } finally {
-      setSaving(false);
+      setTesting(false);
+    }
+  };
+
+  const uploadCookieFile = async (file: File) => {
+    setUploading(true);
+    setCookieError(null);
+    try {
+      const status = await api.uploadCookies(file);
+      setCookieStatus(status);
+    } catch {
+      setCookieError("Cookie-Datei konnte nicht hochgeladen werden.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeCookieFile = async () => {
+    setUploading(true);
+    try {
+      const status = await api.deleteCookies();
+      setCookieStatus(status);
+    } finally {
+      setUploading(false);
     }
   };
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-4 pt-6">
-      <h1 className="mb-4 text-xl font-bold">Speicher</h1>
+      <h1 className="mb-4 text-page-title">Einstellungen</h1>
 
-      {error && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      <ul className="mb-6 space-y-2">
+        {[
+          { href: "/settings/download", label: "Download" },
+          { href: "/settings/player", label: "Player" },
+          { href: "/settings/sources", label: "Automatische Quellen" },
+          { href: "/settings/storage", label: "Speicher" },
+          { href: "/settings/account", label: "Konto" },
+        ].map((item) => (
+          <li key={item.href}>
+            <Link
+              href={item.href}
+              className="flex min-h-11 items-center justify-between rounded-md border border-border p-3 text-sm font-medium"
+            >
+              {item.label}
+              <span aria-hidden="true">›</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
 
-      {storage && (
-        <div className="mb-4 rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-800">
-          <p>Belegt: {formatBytes(storage.usedBytes)}</p>
-          <p>Frei: {formatBytes(storage.freeBytes)}</p>
-          {storage.lowSpaceWarning && (
-            <p className="mt-2 text-red-600 dark:text-red-400">
-              Wenig freier Speicher.
-            </p>
-          )}
-        </div>
-      )}
-
-      <h2 className="mb-2 text-sm font-semibold">Aufbewahrungsdauer</h2>
-      <div className="flex flex-wrap gap-2">
-        {RETENTION_OPTIONS.map((opt) => {
-          const active = storage?.retentionHours === opt.value;
-          return (
+      <section className="mb-6">
+        <h2 className="mb-2 text-section-title">Design</h2>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Design wählen">
+          {THEME_OPTIONS.map((opt) => (
             <button
-              key={String(opt.value)}
+              key={opt.value}
               type="button"
-              disabled={saving}
-              onClick={() => changeRetention(opt.value)}
-              className={`rounded-full border px-3 py-2 text-sm font-medium disabled:opacity-50 ${
-                active
-                  ? "border-brand bg-brand text-white dark:border-brand-dark dark:bg-brand-dark dark:text-gray-950"
-                  : "border-gray-300 dark:border-gray-700"
+              role="radio"
+              aria-checked={theme === opt.value}
+              onClick={() => changeTheme(opt.value)}
+              className={`min-h-11 rounded-pill border px-4 py-2 text-sm font-medium ${
+                theme === opt.value
+                  ? "border-accent bg-accent text-white"
+                  : "border-border text-text-secondary"
               }`}
             >
               {opt.label}
             </button>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mb-6">
+        <h2 className="mb-2 text-section-title">YouTube-Zugang</h2>
+        {cookieError && <p className="mb-2 text-sm text-error">{cookieError}</p>}
+        {cookieStatus && (
+          <p className="mb-2 text-sm text-text-secondary">
+            Status: {COOKIE_STATUS_LABELS[cookieStatus.status] ?? cookieStatus.status}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={testing}
+            onClick={testConnection}
+            className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-medium disabled:opacity-50"
+          >
+            {testing ? "Wird getestet..." : "Verbindung testen"}
+          </button>
+          <label className="flex min-h-11 cursor-pointer items-center rounded-md border border-border px-3 py-2 text-sm font-medium">
+            Cookie-Datei importieren
+            <input
+              type="file"
+              accept=".txt"
+              className="sr-only"
+              disabled={uploading}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) uploadCookieFile(file);
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={uploading}
+            onClick={removeCookieFile}
+            className="min-h-11 rounded-md border border-error/40 px-3 py-2 text-sm font-medium text-error disabled:opacity-50"
+          >
+            Entfernen
+          </button>
+        </div>
+        {testResult && (
+          <p
+            role="status"
+            aria-live="polite"
+            className={`mt-2 text-sm ${testResult.status === "valid" ? "text-success" : "text-error"}`}
+          >
+            {testResult.message}
+          </p>
+        )}
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-section-title">Erweitert</h2>
+        <p className="text-meta text-text-muted">
+          Worker/Scheduler-Status: nicht verfügbar (kein Backend-Endpunkt).
+        </p>
+        <p className="text-meta text-text-muted">
+          yt-dlp/ffmpeg-Version: nicht verfügbar (kein Backend-Endpunkt).
+        </p>
+      </section>
     </main>
   );
 }

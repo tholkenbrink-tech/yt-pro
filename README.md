@@ -4,10 +4,22 @@ Private, iPhone-optimized web app for downloading YouTube videos you have the
 rights to (own uploads, public-domain content, explicitly permitted content).
 No DRM bypass, no protection-measure circumvention, no shared/public hosting.
 
-**Phase 1 scope**: paste a YouTube URL → analyze → pick a quality → server
-prepares the file in the background → pull the finished MP4 into Safari on
-your iPhone → temp files auto-expire. No video player yet (by design — see
-`PHASE_1_STATUS.md`).
+**Phase 1** (manual downloads): paste a YouTube URL → analyze → pick a
+quality → server prepares the file in the background → pull the finished
+MP4 into Safari on your iPhone → temp files auto-expire. See
+`PHASE_1_STATUS.md`.
+
+**Phase 2** (media library) adds: an in-app iOS-compatible video player with
+Picture-in-Picture and resume, a persistent Mediathek, and automatically
+monitored YouTube playlists that discover/prepare new videos on a schedule —
+alongside the manual flow, not instead of it. See `PHASE_2_STATUS.md` for
+what's implemented/tested and what still needs verifying on your real NAS
+and iPhone.
+
+Main areas: **Download** (manual, `/download`), **Aktivität** (`/activity`,
+job progress), **Mediathek** (`/library`, play/resume/PiP/download/delete),
+**Einstellungen** (`/settings`, incl. `/settings/sources` for automatic
+playlists).
 
 ## Architecture
 
@@ -50,7 +62,7 @@ Backend tests:
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt pytest pytest-asyncio httpx
-pytest -q      # 35 tests, all mocked (no real yt-dlp/network calls)
+pytest -q      # 69 tests, all mocked (no real yt-dlp/network calls)
 ```
 
 Frontend (needs Node 18+):
@@ -102,10 +114,23 @@ tunnel hostname from step 3 above as a Pages environment variable, push to
 - Downloaded files are served only to an authenticated session, from a
   UUID-keyed path — never a public/guessable URL.
 
-## Known limitations (Phase 1) — see PHASE_1_STATUS.md for the full list
-- No video player, no watch progress — download only.
-- Only single video / Shorts / playlist / multi-line URL are active; channel
-  and watched-playlist support are scaffolded in the data model but inert.
-- Cookie import (for age-restricted/private videos you have rights to) has
-  an admin upload endpoint but no UI walkthrough for obtaining the cookie
-  file, and no OAuth flow — intentionally out of scope for Phase 1.
+## Known limitations
+See `PHASE_1_STATUS.md` and `PHASE_2_STATUS.md` for the full, current lists.
+Highlights: channel/watched-playlist auto-sync (beyond playlists you add as
+a monitored source) is still scaffolded-but-inert; no password-change UI
+(single env-seeded admin account only); no OAuth, no Google-password entry
+— cookie import remains the only path for private-playlist access; a
+monitored source stuck mid-check after an unclean restart currently needs a
+manual DB fix (no auto-recovery yet, unlike the Phase 1 job worker).
+
+## Automatic playlist sources (Phase 2)
+Under **Einstellungen → Automatische Quellen** (`/settings/sources`): paste
+a playlist URL, pick a quality and a check schedule (manual/6h/12h/daily/
+weekly, or a cron expression under "Erweitert"), and a mode:
+- **Nur erkennen** — new videos are listed but not prepared.
+- **Vorher bestätigen** — new videos wait for you to tap "Vorbereiten".
+- **Automatisch vorbereiten** — new videos go straight into the same
+  download queue Phase 1 uses.
+A background scheduler tick (same container as the temp-file expiry sweep)
+checks due sources, skips ones already mid-check, and never re-prepares a
+video it has already seen for that source.

@@ -1,8 +1,17 @@
 import { getCsrfToken } from "./csrf";
 import type {
   AnalysisResult,
+  CookieStatus,
+  CookieTestResult,
   Job,
+  LibraryItem,
+  LibraryQuery,
+  MonitoredSource,
+  PlaybackProgress,
   SessionUser,
+  SourceCheckRun,
+  SourceDiscoveredItem,
+  SourcePlaylistPreview,
   StorageInfo,
 } from "./types";
 
@@ -27,7 +36,8 @@ async function request<T>(
 ): Promise<T> {
   const method = (options.method ?? "GET").toUpperCase();
   const headers = new Headers(options.headers);
-  if (options.body && !headers.has("Content-Type")) {
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  if (options.body && !isFormData && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
   if (MUTATING_METHODS.has(method)) {
@@ -128,4 +138,122 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ hours }),
     }),
+
+  // ---- Phase 2: player / progress ----
+
+  streamUrl: (itemId: string) => `${API_BASE_URL}/api/items/${itemId}/stream`,
+
+  getProgress: (itemId: string) =>
+    request<PlaybackProgress>(`/api/items/${itemId}/progress`),
+
+  saveProgress: (
+    itemId: string,
+    payload: { positionSeconds: number; durationSeconds: number; playbackRate: number }
+  ) =>
+    request<void>(`/api/items/${itemId}/progress`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  resetProgress: (itemId: string) =>
+    request<void>(`/api/items/${itemId}/progress/reset`, { method: "POST" }),
+
+  markWatched: (itemId: string) =>
+    request<void>(`/api/items/${itemId}/mark-watched`, { method: "POST" }),
+
+  setKeep: (itemId: string, keep: boolean) =>
+    request<void>(`/api/items/${itemId}/keep`, {
+      method: "PUT",
+      body: JSON.stringify({ keep }),
+    }),
+
+  // ---- Phase 2: Mediathek ----
+
+  library: (params: LibraryQuery = {}) => {
+    const qs = new URLSearchParams();
+    if (params.status) qs.set("status", params.status);
+    if (params.origin) qs.set("origin", params.origin);
+    if (params.sourceId) qs.set("sourceId", params.sourceId);
+    if (params.quality) qs.set("quality", params.quality);
+    if (params.sort) qs.set("sort", params.sort);
+    if (params.query) qs.set("query", params.query);
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return request<LibraryItem[]>(`/api/library${suffix}`);
+  },
+
+  // ---- Phase 2: automatic sources ----
+
+  analyzeSource: (url: string) =>
+    request<SourcePlaylistPreview>("/api/sources/analyze", {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    }),
+
+  listSources: () => request<MonitoredSource[]>("/api/sources"),
+
+  getSource: (id: string) => request<MonitoredSource>(`/api/sources/${id}`),
+
+  createSource: (
+    payload: Partial<MonitoredSource> & {
+      sourceUrl: string;
+      name: string;
+      downloadProfileId: string;
+    }
+  ) =>
+    request<MonitoredSource>("/api/sources", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateSource: (id: string, payload: Partial<MonitoredSource>) =>
+    request<MonitoredSource>(`/api/sources/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteSource: (id: string) =>
+    request<void>(`/api/sources/${id}`, { method: "DELETE" }),
+
+  pauseSource: (id: string) =>
+    request<MonitoredSource>(`/api/sources/${id}/pause`, { method: "POST" }),
+
+  resumeSource: (id: string) =>
+    request<MonitoredSource>(`/api/sources/${id}/resume`, { method: "POST" }),
+
+  checkSourceNow: (id: string) =>
+    request<MonitoredSource>(`/api/sources/${id}/check-now`, { method: "POST" }),
+
+  sourceRuns: (id: string) => request<SourceCheckRun[]>(`/api/sources/${id}/runs`),
+
+  sourceItems: (id: string) =>
+    request<SourceDiscoveredItem[]>(`/api/sources/${id}/items`),
+
+  prepareSourceItem: (sourceId: string, itemId: string) =>
+    request<void>(`/api/sources/${sourceId}/items/${itemId}/prepare`, {
+      method: "POST",
+    }),
+
+  ignoreSourceItem: (sourceId: string, itemId: string) =>
+    request<void>(`/api/sources/${sourceId}/items/${itemId}/ignore`, {
+      method: "POST",
+    }),
+
+  // ---- Phase 2: YouTube-Zugang (cookies) ----
+
+  cookieStatus: () => request<CookieStatus>("/api/admin/cookies/status"),
+
+  uploadCookies: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<CookieStatus>("/api/admin/cookies", {
+      method: "POST",
+      body: form,
+    });
+  },
+
+  deleteCookies: () =>
+    request<CookieStatus>("/api/admin/cookies", { method: "DELETE" }),
+
+  testCookies: () =>
+    request<CookieTestResult>("/api/admin/cookies/test", { method: "POST" }),
 };

@@ -10,7 +10,7 @@ from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.core.database import Base, SessionLocal, engine
 from app.core.limiter import limiter
-from app.routers import admin, analyze, auth, downloads, history, jobs, storage
+from app.routers import admin, analyze, auth, downloads, history, jobs, library, sources, storage
 from app.services.seed import seed_admin_user
 
 
@@ -45,6 +45,8 @@ app.include_router(downloads.router)
 app.include_router(history.router)
 app.include_router(storage.router)
 app.include_router(admin.router)
+app.include_router(library.router)
+app.include_router(sources.router)
 
 
 @app.get("/api/health")

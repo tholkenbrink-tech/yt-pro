@@ -12,7 +12,8 @@ from app.core.deps import get_current_user, require_csrf
 from app.models.cookie_config import CookieConfig
 from app.models.status import CookieStatus
 from app.models.user import User
-from app.schemas.admin import CookieStatusOut
+from app.schemas.admin import CookieStatusOut, CookieTestOut
+from app.services import ytdlp_runner
 
 # Google OAuth login flow is explicitly out of scope; cookie import is the only
 # supported auth-bypass mechanism for age/region-gated videos.
@@ -91,3 +92,34 @@ def delete_cookies(db: DBSession = Depends(get_db), user: User = Depends(get_cur
 @router.get("/cookies/status", response_model=CookieStatusOut)
 def cookie_status(db: DBSession = Depends(get_db), user: User = Depends(get_current_user)):
     return CookieStatusOut.model_validate(_get_or_create_row(db))
+
+
+# Fixed, known-public video used only to confirm yt-dlp accepts the cookie
+# file's format -- never derived from user input.
+COOKIE_TEST_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+
+
+@router.post("/cookies/test", response_model=CookieTestOut, dependencies=[Depends(require_csrf)])
+async def test_cookies(db: DBSession = Depends(get_db), user: User = Depends(get_current_user)):
+    path = _cookie_path()
+    row = _get_or_create_row(db)
+    if not os.path.exists(path):
+        row.status = CookieStatus.NOT_CONFIGURED.value
+        db.commit()
+        return CookieTestOut(status="error", message="No cookie file configured")
+
+    try:
+        await ytdlp_runner.dump_json(COOKIE_TEST_URL, cookies_path=path)
+    except ytdlp_runner.YtdlpError as exc:
+        message = str(exc).lower()
+        if "sign in" in message or "cookies" in message or "expired" in message:
+            row.status = CookieStatus.EXPIRED.value
+            db.commit()
+            return CookieTestOut(status="expired", message="Cookie file appears expired or invalid")
+        row.status = CookieStatus.EXPIRED.value
+        db.commit()
+        return CookieTestOut(status="error", message="yt-dlp rejected the cookie file")
+
+    row.status = CookieStatus.VALID.value
+    db.commit()
+    return CookieTestOut(status="valid", message="Cookie file accepted by yt-dlp")

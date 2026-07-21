@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
 import type { StorageInfo } from "@/lib/types";
 
-export function StorageStrip() {
+export function StorageStrip({ compact = false }: { compact?: boolean }) {
   const [storage, setStorage] = useState<StorageInfo | null>(null);
 
   useEffect(() => {
@@ -27,6 +27,23 @@ export function StorageStrip() {
 
   const total = storage.usedBytes + storage.freeBytes;
   const usedPct = total > 0 ? Math.min(100, (storage.usedBytes / total) * 100) : 0;
+
+  if (compact) {
+    return (
+      <div className="text-xs">
+        <div className="flex items-center justify-between text-text-secondary">
+          <span>Speicher</span>
+          <span>{formatBytes(storage.usedBytes)} / {formatBytes(total)}</span>
+        </div>
+        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-progress-track">
+          <div
+            className={`h-full rounded-full ${storage.lowSpaceWarning ? "bg-error" : "bg-accent"}`}
+            style={{ width: `${usedPct}%` }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-4 mb-4 rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-800">

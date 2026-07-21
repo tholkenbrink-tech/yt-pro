@@ -11,3 +11,8 @@ class CookieStatusOut(BaseModel):
     uploadedAt: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+
+class CookieTestOut(BaseModel):
+    status: str
+    message: str

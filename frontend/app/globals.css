@@ -4,6 +4,84 @@
 
 :root {
   color-scheme: light dark;
+
+  --color-background: #f7f7fb;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-text-primary: #14141f;
+  --color-text-secondary: #52525f;
+  --color-text-muted: #88889a;
+  --color-border: #e2e2ea;
+  --color-accent: #6366f1;
+  --color-accent-hover: #818cf8;
+  --color-accent-pressed: #4f46e5;
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-error: #dc2626;
+  --color-info: #2563eb;
+  --color-progress-track: #e2e2ea;
+  --color-overlay: rgba(10, 10, 15, 0.5);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #0a0a0f;
+    --color-surface: #16161f;
+    --color-surface-elevated: #1e1e2a;
+    --color-text-primary: #f2f2f7;
+    --color-text-secondary: #a9a9b8;
+    --color-text-muted: #71717f;
+    --color-border: #2a2a38;
+    --color-accent: #818cf8;
+    --color-accent-hover: #a5b4fc;
+    --color-accent-pressed: #6366f1;
+    --color-success: #4ade80;
+    --color-warning: #fbbf24;
+    --color-error: #f87171;
+    --color-info: #60a5fa;
+    --color-progress-track: #2a2a38;
+    --color-overlay: rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* Manual overrides always win over the OS preference, so a JS toggle in
+   Settings > Design can force a theme regardless of prefers-color-scheme. */
+:root[data-theme="light"] {
+  --color-background: #f7f7fb;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-text-primary: #14141f;
+  --color-text-secondary: #52525f;
+  --color-text-muted: #88889a;
+  --color-border: #e2e2ea;
+  --color-accent: #6366f1;
+  --color-accent-hover: #818cf8;
+  --color-accent-pressed: #4f46e5;
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-error: #dc2626;
+  --color-info: #2563eb;
+  --color-progress-track: #e2e2ea;
+  --color-overlay: rgba(10, 10, 15, 0.5);
+}
+
+:root[data-theme="dark"] {
+  --color-background: #0a0a0f;
+  --color-surface: #16161f;
+  --color-surface-elevated: #1e1e2a;
+  --color-text-primary: #f2f2f7;
+  --color-text-secondary: #a9a9b8;
+  --color-text-muted: #71717f;
+  --color-border: #2a2a38;
+  --color-accent: #818cf8;
+  --color-accent-hover: #a5b4fc;
+  --color-accent-pressed: #6366f1;
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+  --color-error: #f87171;
+  --color-info: #60a5fa;
+  --color-progress-track: #2a2a38;
+  --color-overlay: rgba(0, 0, 0, 0.6);
 }
 
 html,
@@ -12,7 +90,10 @@ body {
 }
 
 body {
-  @apply bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100;
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Inter", sans-serif;
 }
 
 .safe-area-shell {
@@ -24,4 +105,20 @@ body {
 
 .bottom-nav {
   padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

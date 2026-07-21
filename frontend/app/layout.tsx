@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { OfflineBanner } from "@/components/OfflineBanner";
-import { BottomNav } from "@/components/BottomNav";
+import { AppShell } from "@/components/AppShell";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { ThemeInit } from "@/components/ThemeInit";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 export const metadata: Metadata = {
   title: "yt-pro",
@@ -36,11 +38,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="de">
-      <body className="safe-area-shell min-h-screen pb-20">
+      <head>
+        {/* Blocking script (runs before paint) to avoid a flash of the
+            wrong theme when a manual override is stored. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
+      <body className="safe-area-shell min-h-screen pb-20 md:pb-0">
+        <ThemeInit />
         <ServiceWorkerRegister />
         <OfflineBanner />
-        {children}
-        <BottomNav />
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

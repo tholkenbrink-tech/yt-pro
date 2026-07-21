@@ -34,6 +34,9 @@ def create_job(
     source_type: str,
     quality: str,
     items: list[dict],
+    *,
+    monitored_source_id: Optional[str] = None,
+    is_automatically_prepared: bool = False,
 ) -> DownloadJob:
     existing = find_duplicate_job(db, user_id, source_url, quality)
     if existing:
@@ -61,6 +64,8 @@ def create_job(
                 duration=entry.get("duration"),
                 selectedQuality=quality,
                 status=Status.QUEUED.value,
+                monitoredSourceId=monitored_source_id,
+                isAutomaticallyPrepared=is_automatically_prepared,
             )
         )
 

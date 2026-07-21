@@ -57,6 +57,20 @@ def test_expired_item_with_active_stream_is_not_deleted(db_session, test_user):
     assert os.path.exists(item.mediaPath)
 
 
+def test_keep_on_server_item_is_not_deleted_even_when_expired(db_session, test_user):
+    item = _make_item_with_file(db_session, test_user, "exp4", timedelta(hours=-1))
+    item.keepOnServer = True
+    db_session.commit()
+
+    count = expire_once()
+    assert count == 0
+
+    db_session.expire_all()
+    refreshed = db_session.get(DownloadItem, item.id)
+    assert refreshed.deletedFromServerAt is None
+    assert os.path.exists(item.mediaPath)
+
+
 def test_non_expired_item_is_not_deleted(db_session, test_user):
     item = _make_item_with_file(db_session, test_user, "exp3", timedelta(hours=1))
 

@@ -40,7 +40,7 @@ export function ActiveJobsList() {
         {jobs.map((job) => (
           <li key={job.jobId}>
             <Link
-              href={`/jobs/${job.jobId}`}
+              href={`/activity/${job.jobId}`}
               className="flex items-center justify-between rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-800"
             >
               <span className="truncate pr-2">{job.sourceUrl}</span>

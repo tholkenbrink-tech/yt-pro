@@ -12,12 +12,15 @@ class YtdlpError(RuntimeError):
     pass
 
 
-async def dump_json(url: str, flat_playlist: bool = False) -> dict[str, Any]:
+async def dump_json(url: str, flat_playlist: bool = False, cookies_path: Optional[str] = None) -> dict[str, Any]:
     """Runs `yt-dlp --dump-single-json` for a single URL. Fixed argument list,
-    no user-supplied yt-dlp flags -- `url` has already passed the host allowlist."""
+    no user-supplied yt-dlp flags -- `url` has already passed the host allowlist.
+    `cookies_path` is a server-configured file path, never user input."""
     args = ["yt-dlp", "--dump-single-json", "--no-warnings", "--skip-download"]
     if flat_playlist:
         args.append("--flat-playlist")
+    if cookies_path:
+        args.extend(["--cookies", cookies_path])
     args.append(url)
 
     proc = await asyncio.create_subprocess_exec(
