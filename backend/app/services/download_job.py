@@ -72,6 +72,11 @@ def _make_progress_handler(db, item: DownloadItem, job: DownloadJob):
     def handler(line: str):
         match = PROGRESS_RE.search(line)
         if not match:
+            # Non-progress lines are yt-dlp's own warnings/errors -- surface them in the
+            # worker log instead of silently dropping them, otherwise a failure only ever
+            # shows the generic "yt-dlp exited with code N" with no way to diagnose why.
+            if line.strip():
+                logger.info("yt-dlp[%s]: %s", item.id, line.strip())
             return
         groups = match.groupdict()
         try:
