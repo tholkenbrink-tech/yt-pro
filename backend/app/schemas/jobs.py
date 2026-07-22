@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 
 
 class CreateJobRequest(BaseModel):
@@ -57,6 +57,11 @@ class DownloadJobOut(BaseModel):
     completedAt: Optional[datetime] = None
     expiresAt: Optional[datetime] = None
     items: list[DownloadItemOut] = []
+
+    @computed_field
+    @property
+    def jobId(self) -> str:
+        return self.id
 
     model_config = {"from_attributes": True}
 

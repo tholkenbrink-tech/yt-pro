@@ -34,9 +34,11 @@ def login(request: Request, response: Response, body: LoginRequest, db: DBSessio
 
     csrf_token = new_token(16)
     response.set_cookie(SESSION_COOKIE_NAME, session_id, max_age=settings.SESSION_TTL_HOURS * 3600, **COOKIE_KWARGS)
+    csrf_kwargs = dict(httponly=False, secure=True, samesite="none", path="/")
+    if settings.COOKIE_DOMAIN:
+        csrf_kwargs["domain"] = settings.COOKIE_DOMAIN
     response.set_cookie(
-        CSRF_COOKIE_NAME, csrf_token, max_age=settings.SESSION_TTL_HOURS * 3600,
-        httponly=False, secure=True, samesite="none", path="/", domain=settings.COOKIE_DOMAIN,
+        CSRF_COOKIE_NAME, csrf_token, max_age=settings.SESSION_TTL_HOURS * 3600, **csrf_kwargs
     )
     return UserOut.model_validate(user)
 
