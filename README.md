@@ -52,6 +52,10 @@ docker compose up -d --build
 curl http://localhost:8000/api/health   # -> {"status":"ok"}
 ```
 
+> Note: `.env` contains local secrets (admin credentials, session secret,
+> Cloudflare tunnel token) and must not be committed to source control.
+> `.gitignore` already excludes `.env`.
+
 `cloudflared` will restart-loop locally until you set a real
 `CLOUDFLARE_TUNNEL_TOKEN` — that's expected and harmless; it's only needed
 for the real NAS deployment (see below). The `api` container also publishes
@@ -80,18 +84,47 @@ npx playwright test           # e2e, mocked API, iPhone/iPad viewports
 ## Deploying
 
 ### Backend → UGREEN NAS (Docker Compose)
-1. Copy this repo to the NAS (or `git clone` it there).
+The `api`, `worker`, and `scheduler` services run a prebuilt image
+(`ghcr.io/<owner>/yt-pro-api`) instead of building from source on the NAS —
+[.github/workflows/docker-publish.yml](.github/workflows/docker-publish.yml)
+builds and pushes that image on every push to `main` that touches
+`backend/**`. The NAS only ever pulls; it never needs a Python toolchain,
+build context, or (if you don't want one) even Git.
+
+**One-time setup:**
+
+1. Copy `docker-compose.yml` and `.env.example` to the NAS (only these two
+   files are needed — no full repo checkout required, though a `git clone`
+   works fine too if you'd rather track updates that way).
 2. `cp .env.example .env` and fill in real values — especially
    `ADMIN_USERNAME`/`ADMIN_PASSWORD` (your login), `SESSION_SECRET`
-   (`openssl rand -hex 32`), and `CORS_ORIGINS` (your Cloudflare Pages URL).
+   (`openssl rand -hex 32`), and `CORS_ORIGINS` (your frontend's URL).
+   `.env` is the live runtime config; do not commit it to git.
 3. In Cloudflare Zero Trust → Networks → Tunnels, create a tunnel, point a
    public hostname (e.g. `api.yt-pro.yourdomain.com`) at
    `http://api:8000` (the compose service name/port), and copy the tunnel
    token into `CLOUDFLARE_TUNNEL_TOKEN` in `.env`.
-4. `docker compose up -d --build` on the NAS. `docker compose ps` should
-   show `api`, `worker`, `scheduler`, `redis`, and `cloudflared` all healthy.
-5. Data persists in named volumes (`db_data`, `temp_data`, `thumbnail_data`,
+4. If the GHCR package is private (the default, independent of repo
+   visibility), log in once on the NAS so it's allowed to pull:
+   `docker login ghcr.io -u <github-username>` using a
+   [PAT](https://github.com/settings/tokens) with `read:packages` scope.
+   Alternatively, make the package public under its GitHub package settings
+   to skip this.
+5. `docker compose up -d` on the NAS. `docker compose ps` should show `api`,
+   `worker`, `scheduler`, `redis`, and `cloudflared` all healthy.
+6. Data persists in named volumes (`db_data`, `temp_data`, `thumbnail_data`,
    `cookie_data`) — back these up if you care about download history.
+
+**Redeploying after a backend change:** push to `main`, wait for the
+"Build and publish API image" GitHub Action to finish, then on the NAS:
+
+```bash
+docker compose pull api worker scheduler
+docker compose up -d api worker scheduler
+```
+
+No rebuild step, no source code on the NAS at all beyond these two config
+files.
 
 ### Frontend → Cloudflare Pages
 Same pattern as this account's other personal projects: create a Pages
