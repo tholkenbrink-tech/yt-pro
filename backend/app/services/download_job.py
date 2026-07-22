@@ -152,7 +152,14 @@ def _process_item(db, job: DownloadJob, item: DownloadItem, profile: DownloadPro
 
         selector = build_format_selector(profile)
         part_template = os.path.join(out_dir, f"{item.id}.%(ext)s")
-        source_url = f"https://www.youtube.com/watch?v={item.youtubeId}"
+        # Playlist items carry a bare video ID (parsed at analyze time), but
+        # single-video jobs store the user-submitted URL as-is in youtubeId
+        # (see jobs.py's create() fallback) - don't re-wrap an already full URL.
+        source_url = (
+            item.youtubeId
+            if item.youtubeId.startswith(("http://", "https://"))
+            else f"https://www.youtube.com/watch?v={item.youtubeId}"
+        )
 
         args = [
             "yt-dlp",
