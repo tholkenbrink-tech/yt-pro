@@ -21,10 +21,10 @@ services:
       THUMBNAIL_DIR: /data/thumbnails
       COOKIE_DIR: /data/cookies
     volumes:
-      - db_data:/data/database
-      - temp_data:/data/temp
-      - thumbnail_data:/data/thumbnails
-      - cookie_data:/data/cookies
+      - /volume1/media/yt-pro/database:/data/database
+      - /volume1/media/yt-pro/temp:/data/temp
+      - /volume1/media/yt-pro/thumbnails:/data/thumbnails
+      - /volume1/media/yt-pro/cookies:/data/cookies
     depends_on:
       redis:
         condition: service_healthy
@@ -51,10 +51,10 @@ services:
       COOKIE_DIR: /data/cookies
       PYTHONPATH: /app
     volumes:
-      - db_data:/data/database
-      - temp_data:/data/temp
-      - thumbnail_data:/data/thumbnails
-      - cookie_data:/data/cookies
+      - /volume1/media/yt-pro/database:/data/database
+      - /volume1/media/yt-pro/temp:/data/temp
+      - /volume1/media/yt-pro/thumbnails:/data/thumbnails
+      - /volume1/media/yt-pro/cookies:/data/cookies
     depends_on:
       api:
         condition: service_healthy
@@ -74,10 +74,10 @@ services:
       COOKIE_DIR: /data/cookies
       PYTHONPATH: /app
     volumes:
-      - db_data:/data/database
-      - temp_data:/data/temp
-      - thumbnail_data:/data/thumbnails
-      - cookie_data:/data/cookies
+      - /volume1/media/yt-pro/database:/data/database
+      - /volume1/media/yt-pro/temp:/data/temp
+      - /volume1/media/yt-pro/thumbnails:/data/thumbnails
+      - /volume1/media/yt-pro/cookies:/data/cookies
     depends_on:
       api:
         condition: service_healthy
@@ -96,8 +96,4 @@ services:
         condition: service_healthy
 
 volumes:
-  db_data:
-  temp_data:
-  thumbnail_data:
-  cookie_data:
   redis_data:
