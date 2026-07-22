@@ -36,7 +36,7 @@ def login(request: Request, response: Response, body: LoginRequest, db: DBSessio
     response.set_cookie(SESSION_COOKIE_NAME, session_id, max_age=settings.SESSION_TTL_HOURS * 3600, **COOKIE_KWARGS)
     response.set_cookie(
         CSRF_COOKIE_NAME, csrf_token, max_age=settings.SESSION_TTL_HOURS * 3600,
-        httponly=False, secure=True, samesite="none", path="/",
+        httponly=False, secure=True, samesite="none", path="/", domain=settings.COOKIE_DOMAIN,
     )
     return UserOut.model_validate(user)
 

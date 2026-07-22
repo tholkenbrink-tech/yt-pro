@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Optional
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,6 +11,13 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:////data/database/app.db"
     REDIS_URL: str = "redis://localhost:6379/0"
     SESSION_SECRET: str = "change-me-in-production"
+
+    # Shared parent domain (e.g. ".yt-pro.de") for the CSRF cookie so JS running
+    # on the frontend's subdomain can read it via document.cookie. Left unset by
+    # default so local dev / the test client (host "testserver") are unaffected -
+    # only needed when the API and frontend are on different subdomains of the
+    # same registrable domain.
+    COOKIE_DOMAIN: Optional[str] = None
 
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "change-me"
