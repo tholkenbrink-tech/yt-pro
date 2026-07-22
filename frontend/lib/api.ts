@@ -84,7 +84,7 @@ export const api = {
     }),
 
   createJob: (payload: {
-    sourceUrl: string;
+    url: string;
     selectedQuality: string;
     itemIds?: string[];
   }) =>

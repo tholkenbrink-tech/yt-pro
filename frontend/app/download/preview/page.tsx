@@ -102,11 +102,11 @@ export default function DownloadPreviewPage() {
       const payload =
         result.kind === "playlist"
           ? {
-              sourceUrl,
+              url: sourceUrl,
               selectedQuality: quality,
               itemIds: Array.from(selectedIds),
             }
-          : { sourceUrl, selectedQuality: quality };
+          : { url: sourceUrl, selectedQuality: quality };
       const { jobId } = await api.createJob(payload);
       clearPendingAnalysis();
       showToast("Download gestartet");
