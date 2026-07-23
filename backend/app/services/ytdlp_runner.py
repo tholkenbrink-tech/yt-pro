@@ -109,6 +109,30 @@ def probe_duration(path: str) -> Optional[float]:
         return None
 
 
+def probe_bitrate_kbps(path: str) -> Optional[int]:
+    """Overall (video+audio) bitrate in kbit/s, used to decide whether a
+    source is already small enough to skip the fixed-bitrate re-encode
+    pass entirely. None if ffprobe is unavailable/fails."""
+    try:
+        proc = subprocess.run(
+            [
+                "ffprobe", "-v", "error",
+                "-show_entries", "format=bit_rate",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                path,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=15,
+        )
+        if proc.returncode != 0:
+            return None
+        return int(float(proc.stdout.strip()) / 1000)
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return None
+
+
 def probe_codecs(path: str) -> tuple[Optional[str], Optional[str]]:
     """Returns (video_codec, audio_codec) for a media file via ffprobe, or
     (None, None) if it can't be determined (missing binary, unreadable file) --

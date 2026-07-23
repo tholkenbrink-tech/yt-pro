@@ -258,12 +258,33 @@ def _process_item(db, job: DownloadJob, item: DownloadItem, profile: DownloadPro
             os.replace(produced, final_path)
 
         if profile.videoBitrateKbps is not None:
-            # Profile mandates an exact encode target - always transcode to
-            # it regardless of what yt-dlp produced, so output size/bitrate
-            # stays consistent across wildly different source encodes.
-            _set_status(db, job, item, Status.OPTIMIZING_FOR_IPHONE)
-            final_path = _encode_to_profile_spec(db, job, item, final_path, profile)
-            conversion_note = "converted_for_iphone"
+            # Only transcode to the profile's target bitrate when the source
+            # actually exceeds it - YouTube's own encode (often VP9/AV1) is
+            # frequently already smaller than a fixed H.264 target bitrate
+            # would produce, so forcing every download through the same cap
+            # regardless of source size wasted time and sometimes produced a
+            # LARGER file than the original. 15% headroom avoids re-encoding
+            # for marginal overages that aren't worth the cost.
+            target_kbps = profile.videoBitrateKbps + (profile.audioBitrateKbps or 0)
+            actual_kbps = ytdlp_runner.probe_bitrate_kbps(final_path)
+            video_codec, audio_codec = ytdlp_runner.probe_codecs(final_path)
+            codec_ok = (video_codec is None or video_codec in _COMPATIBLE_VIDEO_CODECS) and (
+                audio_codec is None or audio_codec in _COMPATIBLE_AUDIO_CODECS
+            )
+            already_small_enough = actual_kbps is not None and actual_kbps <= target_kbps * 1.15
+
+            if already_small_enough and codec_ok:
+                conversion_note = "no_conversion"
+            elif already_small_enough:
+                # Small enough already - only fix the codec, don't also
+                # force it down to the target bitrate.
+                _set_status(db, job, item, Status.OPTIMIZING_FOR_IPHONE)
+                final_path = _reencode_for_iphone(db, job, item, final_path, profile)
+                conversion_note = "converted_for_iphone"
+            else:
+                _set_status(db, job, item, Status.OPTIMIZING_FOR_IPHONE)
+                final_path = _encode_to_profile_spec(db, job, item, final_path, profile)
+                conversion_note = "converted_for_iphone"
         else:
             needs_conversion, conversion_note = _plan_codec_compatibility(final_path, profile, selector)
             if needs_conversion:
