@@ -10,9 +10,10 @@
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
     "test": "npm run test:unit && npm run test:e2e",
-    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
+    "check-env-local": "if [ -f .env.local ]; then echo '\n❌ .env.local exists and would silently override .env.production for this build (e.g. NEXT_PUBLIC_API_BASE_URL), shipping a broken production bundle. Remove or rename it first (e.g. mv .env.local .env.local.disabled).\n' && exit 1; fi",
+    "preview": "npm run check-env-local && opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "npm run check-env-local && opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "upload": "npm run check-env-local && opennextjs-cloudflare build && opennextjs-cloudflare upload",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
