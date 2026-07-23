@@ -3,6 +3,31 @@
 Anleitung, um yt-pro komplett lokal auf dem Mac zu starten und zu testen,
 bevor etwas auf die NAS/Cloudflare Pages deployed wird.
 
+## ⚠️ Zwei Fallen, die schon mal die echte Produktion lahmgelegt haben
+
+**1. Niemals den `cloudflared`-Service aus `docker-compose copy.yml` starten.**
+Er nutzt denselben `CLOUDFLARE_TUNNEL_TOKEN` wie die echte NAS. Cloudflare
+Tunnels erlauben mehrere gleichzeitige Connector-Instanzen für denselben
+Tunnel - startest du ihn lokal, wird `api.yt-pro.de`-Traffic zufällig
+zwischen deinem Mac und der echten NAS aufgeteilt (genau das ist am
+23.07.2026 passiert: Produktions-Logins/Downloads landeten teils auf dem
+lokalen Testbackend). Starte lokal **immer nur einzeln benannte Services**,
+nie den ganzen Stack per `up -d --build` ohne Service-Liste:
+
+```
+docker compose -f "docker-compose copy.yml" up -d --build redis api worker scheduler
+```
+
+**2. `frontend/.env.local` vor jedem `npm run deploy` entfernen.**
+
+Next.js lädt `.env.local` mit höchster Priorität, auch für Produktions-Builds
+- überschreibt damit `NEXT_PUBLIC_API_BASE_URL` aus `.env.production`. Ein
+vergessenes lokales `.env.local` hat schon mal `http://localhost:8000` in
+den Produktions-Build eingebacken. `npm run deploy`/`preview`/`upload`
+brechen seit dem Fix automatisch ab, solange `.env.local` existiert - lieber
+`mv frontend/.env.local frontend/.env.local.disabled` vor dem Deploy und
+danach zurückbenennen, statt die Datei zu löschen.
+
 ## 1. Einmalige Voraussetzungen prüfen
 
 `.env` im Projekt-Root muss für den lokalen Test folgende Werte enthalten
@@ -28,8 +53,10 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 Im Projekt-Root (`/Users/thorben.holkenbrink/yt-pro/yt-pro`):
 
 ```
-docker compose -f "docker-compose copy.yml" up -d --build
+docker compose -f "docker-compose copy.yml" up -d --build redis api worker scheduler
 ```
+
+(bewusst ohne `cloudflared` - siehe Warnung ganz oben.)
 
 Prüfen:
 

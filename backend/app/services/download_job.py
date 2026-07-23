@@ -153,25 +153,26 @@ def _set_status(db, job: DownloadJob, item: Optional[DownloadItem], value: Statu
 
 
 def _job_output_dir(db, job: DownloadJob, item: DownloadItem) -> str:
-    """One shared folder per playlist/source, instead of one folder per
-    individual file - a monitored source's downloads reuse the same folder
-    across separate scheduler runs (stable name = grouping over time), a
-    manual playlist download's items share one folder named after the
-    playlist, and anything else (a single manual video) keeps today's
-    per-job folder. Filenames within a folder are always item-UUID-based
-    (see _process_item), so multiple jobs safely sharing one folder can
-    never collide."""
-    folder_name = job.id
+    """One shared folder per playlist/source - a monitored source's downloads
+    reuse the same folder across separate scheduler runs (stable name =
+    grouping over time), a manual playlist download's items share one folder
+    named after the playlist. A single manual video gets no folder at all -
+    it's placed directly in TEMP_DIR (see _process_item's finalization,
+    which names it after the video title) so browsing the NAS share doesn't
+    mean opening one UUID-named folder per video."""
     if item.monitoredSourceId:
         source = db.get(MonitoredSource, item.monitoredSourceId)
         if source and source.name:
-            folder_name = sanitize_filename(source.name, default=job.id)
+            path = os.path.join(settings.TEMP_DIR, sanitize_filename(source.name, default=job.id))
+            os.makedirs(path, exist_ok=True)
+            return path
     elif job.sourceType == "playlist" and job.title:
-        folder_name = sanitize_filename(job.title, default=job.id)
+        path = os.path.join(settings.TEMP_DIR, sanitize_filename(job.title, default=job.id))
+        os.makedirs(path, exist_ok=True)
+        return path
 
-    path = os.path.join(settings.TEMP_DIR, folder_name)
-    os.makedirs(path, exist_ok=True)
-    return path
+    os.makedirs(settings.TEMP_DIR, exist_ok=True)
+    return settings.TEMP_DIR
 
 
 def process_job(job_id: str) -> None:
@@ -248,7 +249,10 @@ def _process_item(db, job: DownloadJob, item: DownloadItem, profile: DownloadPro
         if not produced:
             raise RuntimeError("yt-dlp did not produce an output file")
 
-        final_name = sanitize_filename(item.title, default=item.youtubeId, extension=os.path.splitext(produced)[1])
+        # Kept UUID-named through the whole download/encode pipeline (every
+        # intermediate step derives its own output name from this one via
+        # os.path.splitext, so it must stay simple and collision-free) - only
+        # renamed to something human-readable at the very end, once, below.
         final_path = os.path.join(out_dir, f"{item.id}{os.path.splitext(produced)[1]}")
         if produced != final_path:
             os.replace(produced, final_path)
@@ -267,6 +271,14 @@ def _process_item(db, job: DownloadJob, item: DownloadItem, profile: DownloadPro
                 final_path = _reencode_for_iphone(db, job, item, final_path, profile)
 
         _set_status(db, job, item, Status.FINALIZING)
+
+        # Rename from the UUID working name to the video's title now that
+        # processing is done, so browsing the NAS share directly (not just
+        # through the app) is actually navigable - the extension is read
+        # from the real produced file, not assumed, since a re-encode above
+        # may have changed the container.
+        final_name = sanitize_filename(item.title, default=item.youtubeId, extension=os.path.splitext(final_path)[1])
+        final_path = _finalize_media_path(out_dir, final_path, final_name, item.id)
 
         item.mediaPath = final_path
         item.fileName = final_name
@@ -375,6 +387,20 @@ def _encode_to_profile_spec(db, job: DownloadJob, item: DownloadItem, path: str,
         raise RuntimeError("ffmpeg encode to target profile failed")
     os.remove(path)
     return converted_path
+
+
+def _finalize_media_path(out_dir: str, current_path: str, desired_name: str, item_id: str) -> str:
+    """Moves the finished file from its UUID working name to desired_name
+    (the sanitized video title). out_dir is now often shared by multiple
+    items (a playlist/source folder, or TEMP_DIR itself for single videos),
+    so a same-titled file already present there gets a short disambiguating
+    suffix rather than silently overwriting it."""
+    target = os.path.join(out_dir, desired_name)
+    if os.path.exists(target):
+        stem, ext = os.path.splitext(desired_name)
+        target = os.path.join(out_dir, f"{stem}-{item_id[:8]}{ext}")
+    os.replace(current_path, target)
+    return target
 
 
 def _find_produced_file(out_dir: str, item_id: str) -> Optional[str]:
