@@ -18,6 +18,9 @@ class DownloadJob(Base, TimestampMixin):
     userId: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
     sourceUrl: Mapped[str] = mapped_column(String(2048), nullable=False)
     sourceType: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Playlist/source display name (e.g. for playlist jobs) - used for the
+    # Mediathek's playlist-folder grouping and the on-disk folder name.
+    title: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     selectedQuality: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(String(32), default=Status.QUEUED.value, nullable=False)
     progress: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)

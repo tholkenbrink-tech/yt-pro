@@ -331,6 +331,6 @@ def _prepare_item(db, source: MonitoredSource, source_item: MonitoredSourceItem,
     source_item.downloadItemId = download_item.id if download_item else None
     db.commit()
 
-    from app.core.queue import get_queue
+    from app.core.queue import enqueue_download_job
 
-    get_queue().enqueue("app.services.download_job.process_job", job.id, job_id=job.id)
+    enqueue_download_job(job.id)

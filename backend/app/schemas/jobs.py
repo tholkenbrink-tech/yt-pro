@@ -6,11 +6,26 @@ from typing import Optional
 from pydantic import BaseModel, computed_field
 
 
+class JobItemMeta(BaseModel):
+    youtubeId: str
+    title: Optional[str] = None
+    channelName: Optional[str] = None
+    thumbnailPath: Optional[str] = None
+    duration: Optional[int] = None
+
+
 class CreateJobRequest(BaseModel):
     url: str
     selectedQuality: str
     itemIds: Optional[list[str]] = None
     sourceType: Optional[str] = None
+    title: Optional[str] = None
+    channelName: Optional[str] = None
+    thumbnailPath: Optional[str] = None
+    items: Optional[list[JobItemMeta]] = None
+    # Playlist's own display name (distinct from `title`, which is a single
+    # video's title) - used for Mediathek folder grouping and NAS folder naming.
+    playlistTitle: Optional[str] = None
 
 
 class DownloadItemOut(BaseModel):
@@ -43,6 +58,7 @@ class DownloadJobOut(BaseModel):
     userId: str
     sourceUrl: str
     sourceType: str
+    title: Optional[str] = None
     selectedQuality: str
     status: str
     progress: float

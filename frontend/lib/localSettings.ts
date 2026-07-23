@@ -35,13 +35,11 @@ export const DEFAULT_SOURCE_DEFAULTS: SourceDefaults = {
 };
 
 export interface StorageSettings {
-  autoDeleteEnabled: boolean;
   maxStorageBytes: number | null;
   warningThresholdBytes: number | null;
 }
 
 export const DEFAULT_STORAGE_SETTINGS: StorageSettings = {
-  autoDeleteEnabled: true,
   maxStorageBytes: null,
   warningThresholdBytes: null,
 };

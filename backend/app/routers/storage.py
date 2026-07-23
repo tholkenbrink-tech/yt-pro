@@ -19,7 +19,10 @@ router = APIRouter(prefix="/api/storage", tags=["storage"])
 def _get_or_create_settings(db: DBSession) -> AppSettings:
     row = db.get(AppSettings, SINGLETON_ID)
     if not row:
-        row = AppSettings(id=SINGLETON_ID, retentionHours=settings.DEFAULT_RETENTION_HOURS)
+        # Default is "manual delete" (no automatic expiry) - files live on
+        # the NAS, not in ephemeral storage, so auto-expiring them by
+        # default surprised users who expected downloads to just stay put.
+        row = AppSettings(id=SINGLETON_ID, retentionHours=None)
         db.add(row)
         db.commit()
         db.refresh(row)
@@ -43,8 +46,8 @@ def get_storage(db: DBSession = Depends(get_db), user: User = Depends(get_curren
     app_settings = _get_or_create_settings(db)
     free_bytes, _total = disk_usage_bytes(settings.TEMP_DIR if os.path.isdir(settings.TEMP_DIR) else "/")
     return StorageOut(
-        usedTempBytes=_used_temp_bytes(),
-        freeDiskBytes=free_bytes,
+        usedBytes=_used_temp_bytes(),
+        freeBytes=free_bytes,
         lowSpaceWarning=free_bytes < settings.MIN_FREE_DISK_BYTES,
         retentionHours=app_settings.retentionHours,
     )

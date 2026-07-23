@@ -35,6 +35,7 @@ def create_job(
     quality: str,
     items: list[dict],
     *,
+    title: Optional[str] = None,
     monitored_source_id: Optional[str] = None,
     is_automatically_prepared: bool = False,
 ) -> DownloadJob:
@@ -46,6 +47,7 @@ def create_job(
         userId=user_id,
         sourceUrl=source_url,
         sourceType=source_type,
+        title=title,
         selectedQuality=quality,
         status=Status.QUEUED.value,
         currentStep=Status.QUEUED.value,

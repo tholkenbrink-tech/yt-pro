@@ -43,6 +43,9 @@ class LibraryItemOut(BaseModel):
     status: str
     isAutomaticallyPrepared: bool
     sourceName: Optional[str] = None
+    sourceId: Optional[str] = None
+    jobId: Optional[str] = None
+    playlistTitle: Optional[str] = None
     publishedAt: Optional[datetime] = None
     createdAt: datetime
     expiresAt: Optional[datetime] = None

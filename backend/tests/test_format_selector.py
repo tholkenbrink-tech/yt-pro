@@ -20,16 +20,18 @@ def _profile(**overrides):
 
 def test_audio_only_selector():
     selector = build_format_selector(_profile(name="audio", maximumResolution=None, audioOnly=True))
-    assert selector == "bestaudio[acodec^=aac]/bestaudio/best"
+    assert selector == "bestaudio/best"
 
 
 def test_capped_resolution_selector():
     selector = build_format_selector(_profile(name="480p", maximumResolution=480))
     assert "height<=480" in selector
-    assert "vcodec^=h264" in selector
+    # No vcodec filter on the source selection - preferredVideoCodec is a
+    # target encode codec, applied later by ffmpeg, not a source filter.
+    assert "vcodec" not in selector
 
 
 def test_best_profile_has_no_resolution_cap():
     selector = build_format_selector(_profile(name="best", maximumResolution=None))
     assert "height<=" not in selector
-    assert "vcodec^=h264" in selector
+    assert "vcodec" not in selector

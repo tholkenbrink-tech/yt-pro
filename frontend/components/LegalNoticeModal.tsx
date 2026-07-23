@@ -27,24 +27,26 @@ export function LegalNoticeModal() {
       aria-modal="true"
       aria-labelledby="legal-notice-title"
     >
-      <div className="safe-area-shell w-full max-w-md rounded-t-2xl bg-white p-6 shadow-xl dark:bg-gray-900 sm:rounded-2xl">
+      <div className="safe-area-shell w-full max-w-md rounded-t-2xl bg-white px-8 py-8 shadow-xl dark:bg-gray-900 sm:rounded-2xl">
         <h2 id="legal-notice-title" className="text-lg font-semibold">
           Nur für private, rechtmäßige Nutzung
         </h2>
-        <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
-          Diese App ist ausschließlich für den privaten Gebrauch bestimmt.
-          Lade nur Videos herunter, die dir gehören, gemeinfrei sind, für die
-          eine ausdrückliche Erlaubnis vorliegt, oder für die du die Rechte
-          besitzt.
-        </p>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-          Das Umgehen von DRM oder anderen Schutzmaßnahmen ist nicht gestattet
-          und wird von dieser App nicht unterstützt.
-        </p>
+        <div className="mt-4 space-y-3">
+          <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+            Diese App ist ausschließlich für den privaten Gebrauch bestimmt.
+            Lade nur Videos herunter, die dir gehören, gemeinfrei sind, für die
+            eine ausdrückliche Erlaubnis vorliegt, oder für die du die Rechte
+            besitzt.
+          </p>
+          <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+            Das Umgehen von DRM oder anderen Schutzmaßnahmen ist nicht gestattet
+            und wird von dieser App nicht unterstützt.
+          </p>
+        </div>
         <button
           type="button"
           onClick={accept}
-          className="mt-5 w-full rounded-lg bg-brand px-4 py-3 font-medium text-white active:opacity-80 dark:bg-brand-dark dark:text-gray-950"
+          className="mt-6 w-full rounded-lg bg-brand px-4 py-3 font-medium text-white active:opacity-80 dark:bg-brand-dark dark:text-gray-950"
         >
           Verstanden
         </button>

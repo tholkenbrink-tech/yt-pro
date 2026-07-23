@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session as DBSession
 from app.core.config import settings
 from app.core.database import SessionLocal, get_db
 from app.core.deps import get_current_user, require_csrf
-from app.core.queue import get_queue
+from app.core.queue import enqueue_download_job
 from app.models.download_job import DownloadJob
 from app.models.status import TERMINAL_STATUSES, Status
 from app.models.user import User
@@ -35,16 +36,37 @@ def create(
             detail="Not enough free disk space to start a new download",
         )
 
-    items = [{"youtubeId": iid, "title": iid} for iid in (body.itemIds or [])] or [
-        {"youtubeId": body.url, "title": body.url}
-    ]
+    if body.items:
+        items = [
+            {
+                "youtubeId": item.youtubeId,
+                "title": item.title,
+                "channelName": item.channelName,
+                "thumbnailPath": item.thumbnailPath,
+                "duration": item.duration,
+            }
+            for item in body.items
+        ]
+    elif body.itemIds:
+        items = [{"youtubeId": iid, "title": iid} for iid in body.itemIds]
+    else:
+        items = [
+            {
+                "youtubeId": body.url,
+                "title": body.title,
+                "channelName": body.channelName,
+                "thumbnailPath": body.thumbnailPath,
+            }
+        ]
 
+    is_playlist = len(items) > 1
     try:
         job = create_job(
             db,
             user_id=user.id,
             source_url=body.url,
-            source_type=body.sourceType or "video",
+            source_type=body.sourceType or ("playlist" if is_playlist else "video"),
+            title=body.playlistTitle if is_playlist else None,
             quality=body.selectedQuality,
             items=items,
         )
@@ -54,7 +76,7 @@ def create(
             detail={"detail": "A matching job is already in progress", "existingJobId": exc.existing_job_id},
         ) from exc
 
-    get_queue().enqueue("app.services.download_job.process_job", job.id, job_id=job.id)
+    enqueue_download_job(job.id)
     return DownloadJobOut.model_validate(job)
 
 
@@ -94,6 +116,17 @@ def cancel_job(job_id: str, db: DBSession = Depends(get_db), user: User = Depend
     return DownloadJobOut.model_validate(job)
 
 
+@router.delete("/{job_id}", dependencies=[Depends(require_csrf)])
+def delete_job(job_id: str, db: DBSession = Depends(get_db), user: User = Depends(get_current_user)):
+    job = _get_owned_job(db, job_id, user)
+    for item in job.items:
+        if item.mediaPath and os.path.exists(item.mediaPath):
+            os.remove(item.mediaPath)
+    db.delete(job)  # cascades to items via DownloadJob.items relationship
+    db.commit()
+    return {"detail": "deleted"}
+
+
 @router.post("/{job_id}/retry", response_model=DownloadJobOut, dependencies=[Depends(require_csrf)])
 def retry_job(job_id: str, db: DBSession = Depends(get_db), user: User = Depends(get_current_user)):
     job = _get_owned_job(db, job_id, user)
@@ -103,7 +136,7 @@ def retry_job(job_id: str, db: DBSession = Depends(get_db), user: User = Depends
     job.progress = 0.0
     db.commit()
     db.refresh(job)
-    get_queue().enqueue("app.services.download_job.process_job", job.id, job_id=job.id)
+    enqueue_download_job(job.id)
     return DownloadJobOut.model_validate(job)
 
 

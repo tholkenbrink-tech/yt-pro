@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import type { JobItem } from "@/lib/types";
 import { api } from "@/lib/api";
@@ -9,6 +9,7 @@ import { conversionNoteLabel } from "@/lib/statusLabels";
 import { IOSSaveInstructions } from "./IOSSaveInstructions";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { useToast } from "./ToastProvider";
+import { isOffline, removeOffline, saveOffline } from "@/lib/offlineStore";
 
 const SEEN_INSTRUCTIONS_KEY = "yt-pro:ios-instructions-seen";
 
@@ -21,13 +22,64 @@ export function DownloadCard({ item, onChanged }: Props) {
   const [showInstructions, setShowInstructions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [offline, setOffline] = useState(false);
+  const [savingOffline, setSavingOffline] = useState(false);
+  const [saveProgressPct, setSaveProgressPct] = useState<number | null>(null);
   const { showToast } = useToast();
+
+  useEffect(() => {
+    let cancelled = false;
+    isOffline(item.id).then((value) => {
+      if (!cancelled) setOffline(value);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id]);
 
   const handleFirstTap = () => {
     if (typeof window === "undefined") return;
     if (localStorage.getItem(SEEN_INSTRUCTIONS_KEY) !== "1") {
       setShowInstructions(true);
       localStorage.setItem(SEEN_INSTRUCTIONS_KEY, "1");
+    }
+  };
+
+  const toggleOffline = async () => {
+    if (offline) {
+      setSavingOffline(true);
+      try {
+        await removeOffline(item.id);
+        setOffline(false);
+        showToast("Heruntergeladene Kopie entfernt");
+      } finally {
+        setSavingOffline(false);
+      }
+      return;
+    }
+    handleFirstTap();
+    setSavingOffline(true);
+    setSaveProgressPct(0);
+    try {
+      await saveOffline(
+        {
+          id: item.id,
+          title: item.title,
+          channelName: item.channelName,
+          duration: item.duration,
+          selectedQuality: item.selectedQuality,
+          fileSize: item.finalFileSize,
+          thumbnailPath: item.thumbnail,
+        },
+        setSaveProgressPct
+      );
+      setOffline(true);
+      showToast("Heruntergeladen - offline in der App und auf dem Gerät verfügbar");
+    } catch {
+      showToast("Herunterladen fehlgeschlagen - evtl. zu wenig Speicherplatz");
+    } finally {
+      setSavingOffline(false);
+      setSaveProgressPct(null);
     }
   };
 
@@ -46,7 +98,7 @@ export function DownloadCard({ item, onChanged }: Props) {
     try {
       await api.deleteHistoryItem(item.id);
       setShowDeleteConfirm(false);
-      showToast("Datei vom Server gelöscht");
+      showToast("Datei von NAS gelöscht");
       onChanged?.();
     } finally {
       setBusy(false);
@@ -90,14 +142,31 @@ export function DownloadCard({ item, onChanged }: Props) {
         </p>
       )}
 
-      <a
-        href={api.downloadUrl(item.id)}
-        download
-        onClick={handleFirstTap}
-        className="mt-3 block w-full rounded-lg bg-brand px-4 py-3 text-center font-medium text-white active:opacity-80 dark:bg-brand-dark dark:text-gray-950"
+      <button
+        type="button"
+        disabled={savingOffline}
+        onClick={toggleOffline}
+        className={`mt-3 block w-full rounded-lg px-4 py-3 text-center font-medium active:opacity-80 disabled:opacity-50 ${
+          offline
+            ? "border border-success bg-success/15 text-success"
+            : "bg-brand text-white dark:bg-brand-dark dark:text-gray-950"
+        }`}
       >
-        Auf iPhone laden
-      </a>
+        {savingOffline
+          ? saveProgressPct !== null
+            ? `Wird heruntergeladen... ${saveProgressPct}%`
+            : "Wird entfernt..."
+          : offline
+            ? "Heruntergeladen - Kopie entfernen"
+            : "Herunterladen"}
+      </button>
+      <button
+        type="button"
+        onClick={() => setShowInstructions(true)}
+        className="mt-1.5 block w-full text-center text-xs font-medium text-brand underline dark:text-brand-dark"
+      >
+        Wie finde ich die Datei danach?
+      </button>
 
       <div className="mt-2 flex gap-2">
         <button
@@ -114,7 +183,7 @@ export function DownloadCard({ item, onChanged }: Props) {
           onClick={() => setShowDeleteConfirm(true)}
           className="flex-1 rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 disabled:opacity-50 dark:border-red-900 dark:text-red-400"
         >
-          Vom Server löschen
+          Von NAS löschen
         </button>
       </div>
 
@@ -124,8 +193,8 @@ export function DownloadCard({ item, onChanged }: Props) {
 
       <ConfirmationDialog
         open={showDeleteConfirm}
-        title="Datei vom Server löschen?"
-        description="Die Datei wird endgültig vom Server entfernt und steht nicht mehr zum Download bereit."
+        title="Datei von NAS löschen?"
+        description="Die Datei wird endgültig von der NAS entfernt und steht nicht mehr zum Download bereit."
         confirmLabel="Löschen"
         destructive
         busy={busy}

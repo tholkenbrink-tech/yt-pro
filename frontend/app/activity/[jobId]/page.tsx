@@ -11,7 +11,7 @@ export default function JobProgressPage() {
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-4 pt-6">
-      <h1 className="mb-4 text-section-title">Vorbereitung</h1>
+      <h1 className="mb-4 text-section-title">Download auf NAS</h1>
 
       {loading && !job && (
         <p className="text-sm text-text-muted">Wird geladen...</p>

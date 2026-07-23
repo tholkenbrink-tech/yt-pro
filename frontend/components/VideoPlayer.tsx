@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { formatDuration } from "@/lib/format";
 import { getPlayerSettings } from "@/lib/playerSettings";
-import { AirPlayHint } from "./AirPlayHint";
+import { getOfflineBlob } from "@/lib/offlineStore";
 import { PictureInPictureButton } from "./PictureInPictureButton";
 import { ResumePlaybackPrompt } from "./ResumePlaybackPrompt";
 
@@ -25,6 +25,8 @@ export function VideoPlayer({ itemId }: Props) {
   const [resumePosition, setResumePosition] = useState<number | null>(null);
   const [showResumeToast, setShowResumeToast] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [src, setSrc] = useState<string>(() => api.streamUrl(itemId));
+  const [isOfflineSource, setIsOfflineSource] = useState(false);
 
   const saveProgress = (fireAndForget = false) => {
     const video = videoRef.current;
@@ -37,6 +39,29 @@ export function VideoPlayer({ itemId }: Props) {
     const call = api.saveProgress(itemId, payload);
     if (!fireAndForget) call.catch(() => undefined);
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setSrc(api.streamUrl(itemId));
+    setIsOfflineSource(false);
+
+    getOfflineBlob(itemId)
+      .then((blob) => {
+        if (cancelled || !blob) return;
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
+        setIsOfflineSource(true);
+      })
+      .catch(() => {
+        /* no offline copy - keep streaming from the network */
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [itemId]);
 
   useEffect(() => {
     settingsRef.current = getPlayerSettings();
@@ -143,7 +168,7 @@ export function VideoPlayer({ itemId }: Props) {
     <div className="relative">
       <video
         ref={videoRef}
-        src={api.streamUrl(itemId)}
+        src={src}
         controls
         playsInline
         preload="metadata"
@@ -160,17 +185,28 @@ export function VideoPlayer({ itemId }: Props) {
         />
       )}
 
+      {isOfflineSource && (
+        <p className="mt-2 text-xs text-text-muted">
+          Offline gespeichert - wird von diesem Gerät abgespielt.
+        </p>
+      )}
+
       {error && (
         <div className="mt-2 rounded-md bg-error/10 p-3 text-sm text-error">
           <p className="font-medium">Video kann nicht abgespielt werden</p>
-          <p>Prüfe deine Verbindung oder bereite das Video erneut vor.</p>
+          <p>
+            {isOfflineSource
+              ? "Die offline gespeicherte Datei konnte nicht gelesen werden."
+              : "Prüfe deine Verbindung oder bereite das Video erneut vor."}
+          </p>
         </div>
       )}
 
-      <div className="mt-2 flex items-center justify-between">
-        {settingsRef.current.showAirPlayHint && <AirPlayHint />}
-        {settingsRef.current.showPipButton && <PictureInPictureButton videoRef={videoRef} />}
-      </div>
+      {settingsRef.current.showPipButton && (
+        <div className="mt-2 flex items-center justify-end">
+          <PictureInPictureButton videoRef={videoRef} />
+        </div>
+      )}
     </div>
   );
 }

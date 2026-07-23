@@ -63,9 +63,50 @@ def run_download(args: list[str], on_progress_line=None) -> int:
     return proc.returncode
 
 
-def run_ffmpeg(args: list[str]) -> int:
-    proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+def run_ffmpeg(args: list[str], on_progress_line=None) -> int:
+    """Same streaming pattern as run_download - ffmpeg logs progress
+    (`time=00:00:05.00 ...`) to stderr, merged into stdout here so callers
+    can track a genuinely long-running encode instead of it looking frozen."""
+    if on_progress_line is None:
+        proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        return proc.returncode
+
+    proc = subprocess.Popen(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        on_progress_line(line.rstrip("\n"))
+    proc.wait()
     return proc.returncode
+
+
+def probe_duration(path: str) -> Optional[float]:
+    """Source duration in seconds, used to turn ffmpeg's `time=` progress
+    lines into a percentage. None if ffprobe is unavailable/fails - callers
+    must fall back to a coarser progress signal, never crash on this."""
+    try:
+        proc = subprocess.run(
+            [
+                "ffprobe", "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                path,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=15,
+        )
+        if proc.returncode != 0:
+            return None
+        return float(proc.stdout.strip())
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return None
 
 
 def probe_codecs(path: str) -> tuple[Optional[str], Optional[str]]:

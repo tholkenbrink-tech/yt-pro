@@ -7,29 +7,39 @@ import type { Job } from "@/lib/types";
 import { isActiveStatus } from "@/lib/statusLabels";
 import { StatusPill } from "@/components/StatusPill";
 import { Skeleton } from "@/components/Skeleton";
+import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 
 export default function ActivityPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Job | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = () => {
+    setLoading(true);
     api
       .listJobs()
-      .then((data) => {
-        if (!cancelled) setJobs(data);
-      })
-      .catch(() => {
-        if (!cancelled) setError("Vorgänge konnten nicht geladen werden.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .then((data) => setJobs(data))
+      .catch(() => setError("Vorgänge konnten nicht geladen werden."))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
   }, []);
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.deleteJob(deleteTarget.jobId);
+      setDeleteTarget(null);
+      load();
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const active = jobs.filter((j) => isActiveStatus(j.status));
   const finished = jobs.filter((j) => !isActiveStatus(j.status));
@@ -88,19 +98,38 @@ export default function ActivityPage() {
           </h2>
           <ul className="space-y-2">
             {finished.map((job) => (
-              <li key={job.jobId}>
+              <li key={job.jobId} className="flex items-center gap-2">
                 <Link
                   href={`/activity/${job.jobId}`}
-                  className="flex min-h-11 items-center justify-between gap-2 rounded-md border border-border p-3 text-sm"
+                  className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-md border border-border p-3 text-sm"
                 >
                   <span className="truncate pr-2">{job.sourceUrl}</span>
                   <StatusPill status={job.status} />
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(job)}
+                  aria-label="Eintrag löschen"
+                  className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border border-error/40 text-error"
+                >
+                  ✕
+                </button>
               </li>
             ))}
           </ul>
         </section>
       )}
+
+      <ConfirmationDialog
+        open={deleteTarget !== null}
+        title="Eintrag löschen?"
+        description="Der Verlaufseintrag und alle zugehörigen Dateien werden endgültig vom Server entfernt."
+        confirmLabel="Löschen"
+        destructive
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </main>
   );
 }

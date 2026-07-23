@@ -5,6 +5,15 @@
 // /api/* by accident); an explicit allow-list here is easier to verify.
 const SHELL_CACHE = "yt-pro-shell-v1";
 
+// Runtime cache for app-shell pages and Next.js build assets, so a cold PWA
+// launch with zero connectivity can still render pages the user has already
+// opened at least once while online. Must match the RUNTIME_CACHE name in
+// lib/offlineStore.ts, which also writes into this cache directly when a
+// video is saved for offline playback. Still never anything video- or
+// API-related - see isNeverCachePath below, unchanged.
+const RUNTIME_CACHE = "yt-pro-runtime-v1";
+const KNOWN_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
+
 // Only the app shell / static assets are precached - never anything video-
 // or API-related.
 const SHELL_ASSETS = [
@@ -30,7 +39,7 @@ self.addEventListener("activate", (event) => {
       .keys()
       .then((keys) =>
         Promise.all(
-          keys.filter((key) => key !== SHELL_CACHE).map((key) => caches.delete(key))
+          keys.filter((key) => !KNOWN_CACHES.includes(key)).map((key) => caches.delete(key))
         )
       )
       .then(() => self.clients.claim())
@@ -61,8 +70,24 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.mode === "navigate") {
+    // Network-first so users always see fresh content when online, but
+    // every successful visit is cached into RUNTIME_CACHE so the same page
+    // can be reopened from a cold, fully offline launch later. Only then
+    // does it fall back to the generic /offline page.
     event.respondWith(
-      fetch(request).catch(() => caches.match("/offline").then((r) => r || Response.error()))
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, response.clone()));
+          }
+          return response;
+        })
+        .catch(() =>
+          caches
+            .match(request)
+            .then((cached) => cached || caches.match("/offline"))
+            .then((r) => r || Response.error())
+        )
     );
     return;
   }
@@ -81,6 +106,24 @@ self.addEventListener("fetch", (event) => {
           })
           .catch(() => cached);
         return cached || network;
+      })
+    );
+    return;
+  }
+
+  // Next.js build output under /_next/static/* is content-hashed and
+  // therefore immutable - safe to cache-first indefinitely, and required
+  // for the app shell's JS/CSS to load on a fully offline cold launch.
+  if (url.pathname.startsWith("/_next/static/")) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (response.ok) {
+            caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, response.clone()));
+          }
+          return response;
+        });
       })
     );
   }

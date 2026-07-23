@@ -6,19 +6,19 @@ import { formatDuration } from "@/lib/format";
 
 interface Props {
   items: PlaylistItemPreview[];
-  selectedIds: Set<string>;
-  onToggle: (youtubeId: string) => void;
+  selectedIds: Set<number>;
+  onToggle: (index: number) => void;
 }
 
 export function PlaylistItemList({ items, selectedIds, onToggle }: Props) {
   return (
     <ul className="divide-y divide-gray-200 dark:divide-gray-800">
-      {items.map((item) => (
-        <li key={item.youtubeId} className="flex items-center gap-3 py-2">
+      {items.map((item, index) => (
+        <li key={`${item.youtubeId}-${index}`} className="flex items-center gap-3 py-2">
           <input
             type="checkbox"
-            checked={selectedIds.has(item.youtubeId)}
-            onChange={() => onToggle(item.youtubeId)}
+            checked={selectedIds.has(index)}
+            onChange={() => onToggle(index)}
             className="h-5 w-5 shrink-0 accent-brand dark:accent-brand-dark"
             aria-label={`${item.title} auswählen`}
           />

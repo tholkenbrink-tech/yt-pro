@@ -45,12 +45,10 @@ def _fresh_db():
 
 @pytest.fixture(autouse=True)
 def _no_real_queue(monkeypatch):
-    class DummyQueue:
-        def enqueue(self, *args, **kwargs):
-            return None
-
-    monkeypatch.setattr("app.routers.jobs.get_queue", lambda: DummyQueue())
-    monkeypatch.setattr("app.routers.history.get_queue", lambda: DummyQueue())
+    monkeypatch.setattr("app.routers.jobs.enqueue_download_job", lambda job_id: None)
+    monkeypatch.setattr("app.routers.history.enqueue_download_job", lambda job_id: None)
+    monkeypatch.setattr("app.routers.sources.enqueue_download_job", lambda job_id: None)
+    monkeypatch.setattr("app.core.queue.enqueue_download_job", lambda job_id: None)
 
 
 @pytest.fixture

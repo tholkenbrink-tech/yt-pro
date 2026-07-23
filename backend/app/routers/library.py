@@ -81,6 +81,14 @@ def get_library(
         rows = db.execute(select(MonitoredSource.id, MonitoredSource.name).where(MonitoredSource.id.in_(source_ids)))
         source_names = {row.id: row.name for row in rows}
 
+    job_titles: dict[str, str] = {}
+    job_ids = {i.jobId for i in items}
+    if job_ids:
+        rows = db.execute(
+            select(DownloadJob.id, DownloadJob.title).where(DownloadJob.id.in_(job_ids), DownloadJob.title.is_not(None))
+        )
+        job_titles = {row.id: row.title for row in rows}
+
     published_at_by_item: dict[str, datetime] = {}
     item_ids = [i.id for i in items]
     if item_ids:
@@ -126,6 +134,8 @@ def get_library(
             item.keepOnServer or not item.expiresAt or item.expiresAt > datetime.utcnow() + _EXPIRING_SOON_WINDOW
         ):
             continue
+        if status == "downloaded-to-device" and item.status != Status.DOWNLOADED_TO_DEVICE.value:
+            continue
 
         results.append(
             LibraryItemOut(
@@ -140,6 +150,9 @@ def get_library(
                 status=item.status,
                 isAutomaticallyPrepared=item.isAutomaticallyPrepared,
                 sourceName=source_names.get(item.monitoredSourceId) if item.monitoredSourceId else None,
+                sourceId=item.monitoredSourceId,
+                jobId=item.jobId,
+                playlistTitle=job_titles.get(item.jobId),
                 publishedAt=published_at_by_item.get(item.id),
                 createdAt=item.createdAt,
                 expiresAt=item.expiresAt,

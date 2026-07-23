@@ -7,13 +7,19 @@ const KEY = "yt-pro:pending-analysis";
  * to the Analyze page during one navigation, so sessionStorage (not a
  * server round-trip or global store) is enough.
  */
-export function savePendingAnalysis(result: AnalysisResult, sourceUrl: string) {
-  sessionStorage.setItem(KEY, JSON.stringify({ result, sourceUrl }));
+export function savePendingAnalysis(
+  result: AnalysisResult,
+  sourceUrl: string,
+  preferredQuality?: string
+) {
+  sessionStorage.setItem(KEY, JSON.stringify({ result, sourceUrl, preferredQuality }));
 }
 
 export function loadPendingAnalysis(): {
   result: AnalysisResult;
   sourceUrl: string;
+  preferredQuality?: string;
+  selectedIndices?: number[];
 } | null {
   const raw = sessionStorage.getItem(KEY);
   if (!raw) return null;
@@ -24,8 +30,34 @@ export function loadPendingAnalysis(): {
   }
 }
 
+/** Called on every checkbox toggle in the playlist preview so a selection
+ * survives navigating away (e.g. back to step 1) and back again, instead of
+ * resetting to the analyze-time defaults on remount. */
+export function updatePendingSelection(selectedIndices: number[]) {
+  const pending = loadPendingAnalysis();
+  if (!pending) return;
+  sessionStorage.setItem(KEY, JSON.stringify({ ...pending, selectedIndices }));
+}
+
 export function clearPendingAnalysis() {
   sessionStorage.removeItem(KEY);
+}
+
+const DRAFT_TEXT_KEY = "yt-pro:download-draft-text";
+
+/** Keeps the step-1 URL textarea content alive across tab switches / app
+ * backgrounding (mobile Safari can discard state on tab switch), until the
+ * user actually starts an analysis. */
+export function getDraftText(): string {
+  return sessionStorage.getItem(DRAFT_TEXT_KEY) ?? "";
+}
+
+export function setDraftText(text: string) {
+  sessionStorage.setItem(DRAFT_TEXT_KEY, text);
+}
+
+export function clearDraftText() {
+  sessionStorage.removeItem(DRAFT_TEXT_KEY);
 }
 
 const QUALITY_KEY = "yt-pro:last-quality";

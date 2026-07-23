@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_csrf
-from app.core.queue import get_queue
+from app.core.queue import enqueue_download_job
 from app.models.download_item import DownloadItem
 from app.models.download_job import DownloadJob
 from app.models.status import Status
@@ -81,5 +81,5 @@ def reprepare(item_id: str, db: DBSession = Depends(get_db), user: User = Depend
             status_code=status.HTTP_409_CONFLICT,
             detail={"detail": "A matching job is already in progress", "existingJobId": exc.existing_job_id},
         ) from exc
-    get_queue().enqueue("app.services.download_job.process_job", new_job.id, job_id=new_job.id)
+    enqueue_download_job(new_job.id)
     return {"jobId": new_job.id, "status": Status.QUEUED.value}

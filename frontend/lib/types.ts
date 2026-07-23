@@ -45,7 +45,10 @@ export interface PlaylistAnalysis {
   itemCount: number;
   items: PlaylistItemPreview[];
   totalDuration: number;
-  estimatedTotalSize: number;
+  // No size-estimation exists in the analyze pipeline yet (would need a
+  // per-format probe) - genuinely unknown, not zero.
+  estimatedTotalSize?: number;
+  availableQualities: Quality[];
 }
 
 export type AnalysisResult =
@@ -79,6 +82,8 @@ export interface Job {
   jobId: string;
   status: JobStatus;
   sourceUrl: string;
+  title?: string;
+  progress: number;
   selectedQuality: string;
   createdAt: string;
   expiresAt?: string;
@@ -128,6 +133,9 @@ export interface LibraryItem {
   status: JobStatus;
   isAutomaticallyPrepared: boolean;
   sourceName?: string;
+  sourceId?: string;
+  jobId?: string;
+  playlistTitle?: string;
   createdAt: string;
   publishedAt?: string;
   expiresAt?: string;

@@ -9,7 +9,8 @@ import {
 } from "@/lib/localSettings";
 import { useToast } from "@/components/ToastProvider";
 
-const QUALITIES = ["1080p", "720p", "480p"];
+const QUALITIES = ["original", "1080p", "720p", "480p"];
+const QUALITY_LABELS: Record<string, string> = { original: "Original" };
 
 export default function DownloadSettingsPage() {
   const [settings, setSettings] = useState<DownloadSettings>(DEFAULT_DOWNLOAD_SETTINGS);
@@ -41,7 +42,7 @@ export default function DownloadSettingsPage() {
       >
         {QUALITIES.map((q) => (
           <option key={q} value={q}>
-            {q}
+            {QUALITY_LABELS[q] ?? q}
           </option>
         ))}
       </select>

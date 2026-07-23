@@ -1,6 +1,6 @@
 import { getCsrfToken } from "./csrf";
+import type { RawAnalyzeResponse } from "./analyzeTransform";
 import type {
-  AnalysisResult,
   CookieStatus,
   CookieTestResult,
   Job,
@@ -30,6 +30,13 @@ export class ApiError extends Error {
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
+// Above the backend's own ANALYZE_TIMEOUT_SECONDS (30s) so a slow-but-normal
+// analyze still gets a clean backend error response first - this is a
+// last-resort ceiling for requests that hang entirely (e.g. a proxy/tunnel
+// silently dropping the connection), so it fails with a clear error instead
+// of spinning forever.
+const REQUEST_TIMEOUT_MS = 45_000;
+
 async function request<T>(
   path: string,
   options: RequestInit = {}
@@ -45,12 +52,20 @@ async function request<T>(
     if (token) headers.set("X-CSRF-Token", token);
   }
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    method,
-    headers,
-    credentials: "include",
-  });
+  const timeoutController = new AbortController();
+  const timeout = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      method,
+      headers,
+      credentials: "include",
+      signal: options.signal ?? timeoutController.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!res.ok) {
     let body: unknown;
@@ -78,7 +93,7 @@ export const api = {
   session: () => request<SessionUser>("/api/auth/session"),
 
   analyze: (input: { url?: string; urls?: string[] }) =>
-    request<AnalysisResult>("/api/analyze", {
+    request<RawAnalyzeResponse>("/api/analyze", {
       method: "POST",
       body: JSON.stringify(input),
     }),
@@ -87,6 +102,17 @@ export const api = {
     url: string;
     selectedQuality: string;
     itemIds?: string[];
+    title?: string;
+    channelName?: string;
+    thumbnailPath?: string;
+    playlistTitle?: string;
+    items?: {
+      youtubeId: string;
+      title?: string;
+      channelName?: string;
+      thumbnailPath?: string;
+      duration?: number;
+    }[];
   }) =>
     request<{ jobId: string; status: string }>("/api/jobs", {
       method: "POST",
@@ -100,6 +126,8 @@ export const api = {
 
   cancelJob: (id: string) =>
     request<void>(`/api/jobs/${id}/cancel`, { method: "POST" }),
+
+  deleteJob: (id: string) => request<void>(`/api/jobs/${id}`, { method: "DELETE" }),
 
   retryJob: (id: string) =>
     request<void>(`/api/jobs/${id}/retry`, { method: "POST" }),

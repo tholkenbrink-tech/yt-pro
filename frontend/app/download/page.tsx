@@ -3,13 +3,30 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
-import { savePendingAnalysis, getLastQuality } from "@/lib/analysisStore";
+import {
+  savePendingAnalysis,
+  getLastQuality,
+  getDraftText,
+  setDraftText,
+  clearDraftText,
+} from "@/lib/analysisStore";
+import { getDownloadSettings } from "@/lib/localSettings";
+import { toAnalysisResult } from "@/lib/analyzeTransform";
 import { LegalNoticeModal } from "@/components/LegalNoticeModal";
-import { StorageStrip } from "@/components/StorageStrip";
 import { ActiveJobsList } from "@/components/ActiveJobsList";
-import { AddToHomeScreen } from "@/components/AddToHomeScreen";
+import { QualitySelector } from "@/components/QualitySelector";
 import { Skeleton } from "@/components/Skeleton";
 import { useToast } from "@/components/ToastProvider";
+
+// Mirrors the profile names seeded on the backend (backend/app/services/profiles_seed.py)
+// and the choices offered in Settings -> Download - there's no "list profiles"
+// endpoint to fetch this from, so it's kept as a static list like that page.
+const QUALITY_OPTIONS = [
+  { name: "original", label: "Original" },
+  { name: "1080p", label: "1080p" },
+  { name: "720p", label: "720p" },
+  { name: "480p", label: "480p" },
+];
 
 export default function DownloadPage() {
   const router = useRouter();
@@ -17,17 +34,25 @@ export default function DownloadPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastQuality, setLastQualityState] = useState<string | null>(null);
+  const [quality, setQuality] = useState("720p");
   const { showToast } = useToast();
 
   useEffect(() => {
     setLastQualityState(getLastQuality());
+    setQuality(getDownloadSettings().defaultQuality);
+    setText(getDraftText());
   }, []);
+
+  const updateText = (value: string) => {
+    setText(value);
+    setDraftText(value);
+  };
 
   const pasteFromClipboard = async () => {
     try {
       const clipboardText = await navigator.clipboard.readText();
       if (clipboardText) {
-        setText((prev) => (prev ? `${prev}\n${clipboardText}` : clipboardText));
+        updateText(text ? `${text}\n${clipboardText}` : clipboardText);
         showToast("Link eingefügt");
       }
     } catch {
@@ -50,8 +75,10 @@ export default function DownloadPage() {
     setError(null);
     try {
       const payload = lines.length === 1 ? { url: lines[0] } : { urls: lines };
-      const result = await api.analyze(payload);
-      savePendingAnalysis(result, lines[0]);
+      const raw = await api.analyze(payload);
+      const result = toAnalysisResult(raw);
+      savePendingAnalysis(result, lines[0], quality);
+      clearDraftText();
       router.push("/download/preview");
     } catch (e) {
       if (e instanceof ApiError && e.status === 400) {
@@ -84,9 +111,15 @@ export default function DownloadPage() {
         <textarea
           id="url-input"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => updateText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              analyze();
+            }
+          }}
           rows={4}
-          placeholder={"https://youtube.com/watch?v=...\n(mehrere Links = je eine Zeile)"}
+          placeholder={"https://youtube.com/watch?v=...\n(mehrere Links = je eine Zeile, Umschalt+Enter für neue Zeile)"}
           className="w-full rounded-md border border-border bg-surface p-3 text-base text-text-primary"
         />
       </div>
@@ -107,6 +140,11 @@ export default function DownloadPage() {
         >
           {loading ? "Analysiere..." : "Analysieren"}
         </button>
+      </div>
+
+      <div className="mx-4 mb-3">
+        <h3 className="mb-2 text-sm font-semibold">Qualität</h3>
+        <QualitySelector qualities={QUALITY_OPTIONS} selected={quality} onSelect={setQuality} />
       </div>
 
       {lastQuality && !loading && (
@@ -131,8 +169,6 @@ export default function DownloadPage() {
         </div>
       )}
 
-      <AddToHomeScreen />
-      <StorageStrip />
       <ActiveJobsList />
     </main>
   );

@@ -85,21 +85,21 @@ export function ConfirmationDialog({
         aria-labelledby="confirmation-dialog-title"
         aria-describedby={description ? "confirmation-dialog-description" : undefined}
         onClick={(e) => e.stopPropagation()}
-        className="dialog-enter w-full max-w-sm rounded-lg bg-surface-elevated p-5 shadow-xl"
+        className="dialog-enter w-full max-w-sm rounded-xl bg-surface-elevated p-6 shadow-xl"
       >
         <h2 id="confirmation-dialog-title" className="text-card-title">
           {title}
         </h2>
         {description && (
-          <p id="confirmation-dialog-description" className="mt-2 text-sm text-text-secondary">
+          <p id="confirmation-dialog-description" className="mt-3 text-sm leading-relaxed text-text-secondary">
             {description}
           </p>
         )}
-        <div className="mt-5 flex gap-2">
+        <div className="mt-6 flex gap-3">
           <button
             type="button"
             onClick={onCancel}
-            className="min-h-11 flex-1 rounded-md border border-border px-4 py-2 text-sm font-medium"
+            className="min-h-11 flex-1 rounded-md border border-border px-4 py-3 text-sm font-medium"
           >
             {cancelLabel}
           </button>
@@ -108,7 +108,7 @@ export function ConfirmationDialog({
             ref={confirmRef}
             disabled={busy}
             onClick={onConfirm}
-            className={`min-h-11 flex-1 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-50 ${
+            className={`min-h-11 flex-1 rounded-md px-4 py-3 text-sm font-medium text-white disabled:opacity-50 ${
               destructive ? "bg-error" : "bg-accent"
             }`}
           >

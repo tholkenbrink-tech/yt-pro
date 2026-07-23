@@ -40,10 +40,10 @@ export function BottomSheet({ open, title, onClose, children }: Props) {
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className="sheet-enter safe-area-shell max-h-[80vh] w-full overflow-y-auto rounded-t-lg bg-surface-elevated p-4 pb-6 outline-none"
+        className="sheet-enter safe-area-shell max-h-[80vh] w-full overflow-y-auto rounded-t-2xl bg-surface-elevated px-6 pb-9 pt-6 outline-none"
       >
-        <div className="mx-auto mb-3 h-1.5 w-10 rounded-pill bg-border" aria-hidden="true" />
-        {title && <h2 className="mb-3 text-card-title">{title}</h2>}
+        <div className="mx-auto mb-4 h-1.5 w-10 rounded-pill bg-border" aria-hidden="true" />
+        {title && <h2 className="mb-4 text-card-title">{title}</h2>}
         {children}
       </div>
     </div>

@@ -15,7 +15,6 @@ const TOGGLES: { key: keyof PlayerSettings; label: string }[] = [
   { key: "markWatchedAt95", label: "Bei 95% als angesehen markieren" },
   { key: "replayAfterFinish", label: "Nach Ende erneut abspielen anbieten" },
   { key: "showPipButton", label: "Bild-in-Bild-Button anzeigen" },
-  { key: "showAirPlayHint", label: "AirPlay-Hinweis anzeigen" },
 ];
 
 export default function PlayerSettingsPage() {

@@ -10,13 +10,19 @@ import {
   setStorageSettings,
   type StorageSettings,
 } from "@/lib/localSettings";
+import {
+  clearAllOffline,
+  getOfflineUsageBytes,
+  listOfflineMeta,
+  removeOffline,
+  type OfflineMeta,
+} from "@/lib/offlineStore";
 import { useToast } from "@/components/ToastProvider";
 
 const RETENTION_OPTIONS: { value: number | null; label: string }[] = [
-  { value: 1, label: "1 Stunde" },
-  { value: 6, label: "6 Stunden" },
   { value: 24, label: "24 Stunden" },
   { value: 72, label: "3 Tage" },
+  { value: 168, label: "7 Tage" },
   { value: null, label: "Manuell löschen" },
 ];
 
@@ -25,6 +31,12 @@ export default function StorageSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [local, setLocal] = useState<StorageSettings>(DEFAULT_STORAGE_SETTINGS);
+  const [offlineCount, setOfflineCount] = useState(0);
+  const [offlineBytes, setOfflineBytes] = useState(0);
+  const [offlineItems, setOfflineItems] = useState<OfflineMeta[]>([]);
+  const [offlineListOpen, setOfflineListOpen] = useState(false);
+  const [clearingOffline, setClearingOffline] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const { showToast } = useToast();
 
   const load = () => {
@@ -34,10 +46,40 @@ export default function StorageSettingsPage() {
       .catch(() => setError("Speicherinformationen konnten nicht geladen werden."));
   };
 
+  const loadOfflineUsage = () => {
+    listOfflineMeta().then((items) => {
+      setOfflineCount(items.length);
+      setOfflineItems(items);
+    });
+    getOfflineUsageBytes().then(setOfflineBytes);
+  };
+
+  const removeOne = async (id: string) => {
+    setRemovingId(id);
+    try {
+      await removeOffline(id);
+      loadOfflineUsage();
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
   useEffect(() => {
     load();
+    loadOfflineUsage();
     setLocal(getStorageSettings());
   }, []);
+
+  const clearOffline = async () => {
+    setClearingOffline(true);
+    try {
+      await clearAllOffline();
+      loadOfflineUsage();
+      showToast("Offline-Kopien gelöscht");
+    } finally {
+      setClearingOffline(false);
+    }
+  };
 
   const changeRetention = async (hours: number | null) => {
     setSaving(true);
@@ -79,8 +121,63 @@ export default function StorageSettingsPage() {
         </div>
       )}
 
+      <h2 className="mb-2 text-sm font-semibold">Offline-Speicher auf diesem Gerät</h2>
+      <div className="mb-6 rounded-md border border-border p-3 text-sm">
+        <p>
+          {offlineCount === 0
+            ? "Keine Videos offline gespeichert."
+            : `${offlineCount} Video${offlineCount === 1 ? "" : "s"} offline gespeichert - ${formatBytes(offlineBytes)}`}
+        </p>
+        <p className="mt-1 text-meta text-text-muted">
+          Für Offline-Wiedergabe gespeicherte Videos liegen direkt auf diesem
+          Gerät und funktionieren auch ohne Internetverbindung.
+        </p>
+        {offlineCount > 0 && (
+          <>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setOfflineListOpen((v) => !v)}
+                className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-medium"
+              >
+                {offlineListOpen ? "Videos ausblenden" : "Videos anzeigen"}
+              </button>
+              <button
+                type="button"
+                disabled={clearingOffline}
+                onClick={clearOffline}
+                className="min-h-11 rounded-md border border-error/40 px-3 py-2 text-sm font-medium text-error disabled:opacity-50"
+              >
+                Alle Offline-Kopien löschen
+              </button>
+            </div>
+            {offlineListOpen && (
+              <ul className="mt-3 max-h-48 space-y-1 overflow-y-auto rounded-md border border-border">
+                {offlineItems.map((video) => (
+                  <li
+                    key={video.id}
+                    className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 text-sm last:border-b-0"
+                  >
+                    <span className="min-w-0 truncate">{video.title}</span>
+                    <button
+                      type="button"
+                      disabled={removingId === video.id}
+                      onClick={() => removeOne(video.id)}
+                      aria-label={`${video.title} entfernen`}
+                      className="shrink-0 text-xs font-medium text-error disabled:opacity-50"
+                    >
+                      Entfernen
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </div>
+
       <h2 className="mb-2 text-sm font-semibold">Aufbewahrungsdauer</h2>
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="mb-6 flex flex-nowrap gap-1.5 overflow-x-auto">
         {RETENTION_OPTIONS.map((opt) => {
           const active = storage?.retentionHours === opt.value;
           return (
@@ -89,7 +186,7 @@ export default function StorageSettingsPage() {
               type="button"
               disabled={saving}
               onClick={() => changeRetention(opt.value)}
-              className={`min-h-11 rounded-pill border px-3 py-2 text-sm font-medium disabled:opacity-50 ${
+              className={`min-h-11 shrink-0 rounded-pill border px-2.5 py-2 text-xs font-medium disabled:opacity-50 sm:text-sm ${
                 active ? "border-accent bg-accent text-white" : "border-border"
               }`}
             >
@@ -102,19 +199,6 @@ export default function StorageSettingsPage() {
       {/* No backend endpoint covers these yet - persisted client-side only
           (best-effort, not enforced server-side). */}
       <h2 className="mb-2 text-sm font-semibold">Weitere Einstellungen (lokal)</h2>
-      <label className="mb-3 flex min-h-11 items-center justify-between">
-        <span className="text-sm font-medium">Automatisch löschen</span>
-        <input
-          type="checkbox"
-          checked={local.autoDeleteEnabled}
-          onChange={(e) => updateLocal({ autoDeleteEnabled: e.target.checked })}
-          className="h-5 w-5 accent-accent"
-        />
-      </label>
-      <p className="mb-3 text-meta text-text-muted">
-        Videos, die du unter &quot;Behalten&quot; markierst, werden von der
-        automatischen Löschung ausgenommen.
-      </p>
 
       <label htmlFor="max-storage" className="mb-1 block text-sm font-medium">
         Maximaler Speicherplatz (GB)
@@ -147,6 +231,10 @@ export default function StorageSettingsPage() {
         }
         className="min-h-11 w-full rounded-md border border-border bg-surface p-2 text-text-primary"
       />
+      <p className="mt-1 text-meta text-text-muted">
+        Ab dieser belegten Speichermenge zeigt yt-pro eine Warnung an, damit
+        du rechtzeitig Speicherplatz freigeben kannst, bevor er knapp wird.
+      </p>
     </main>
   );
 }

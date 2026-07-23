@@ -6,7 +6,6 @@ export interface PlayerSettings {
   markWatchedAt95: boolean;
   replayAfterFinish: boolean;
   showPipButton: boolean;
-  showAirPlayHint: boolean;
 }
 
 export const DEFAULT_PLAYER_SETTINGS: PlayerSettings = {
@@ -15,7 +14,6 @@ export const DEFAULT_PLAYER_SETTINGS: PlayerSettings = {
   markWatchedAt95: true,
   replayAfterFinish: true,
   showPipButton: true,
-  showAirPlayHint: true,
 };
 
 export function getPlayerSettings(): PlayerSettings {

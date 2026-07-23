@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_csrf
-from app.core.queue import get_queue
+from app.core.queue import enqueue_download_job
 from app.models.download_profile import DownloadProfile
 from app.models.monitored_source import MonitoredSource, MonitoredSourceMode
 from app.models.monitored_source_item import MonitoredSourceItem, MonitoredSourceItemStatus
@@ -254,7 +254,7 @@ def prepare_source_item(
     item.downloadItemId = download_item.id if download_item else None
     db.commit()
 
-    get_queue().enqueue("app.services.download_job.process_job", job.id, job_id=job.id)
+    enqueue_download_job(job.id)
     return {"jobId": job.id, "status": item.status}
 
 

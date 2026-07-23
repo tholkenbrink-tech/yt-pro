@@ -9,3 +9,7 @@ out/
 test-results/
 playwright-report/
 .DS_Store
+
+# Local-only build-from-source compose variant (contains a live tunnel token
+# when copied from a real .env) - never meant to be committed.
+docker-compose copy.yml

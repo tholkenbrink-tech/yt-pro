@@ -34,6 +34,9 @@ class AnalyzedItem(BaseModel):
 class AnalyzeResponse(BaseModel):
     sourceType: str
     title: Optional[str] = None
+    # Distinct from `title` - only set for playlist/multi results, so the
+    # frontend never has to guess which one a shared "title" field means.
+    playlistTitle: Optional[str] = None
     thumbnail: Optional[str] = None
     channelName: Optional[str] = None
     duration: Optional[int] = None

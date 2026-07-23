@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Optional
 
 from sqlalchemy import select
@@ -27,11 +28,20 @@ def get_available_qualities(db: DBSession) -> list[QualityOption]:
 
 
 def _to_analyzed_item(entry: dict[str, Any]) -> AnalyzedItem:
+    youtube_id = entry.get("id") or ""
+    thumbnail = entry.get("thumbnail")
+    if not thumbnail and entry.get("thumbnails"):
+        thumbnail = entry["thumbnails"][-1].get("url")
+    if not thumbnail and youtube_id:
+        # --flat-playlist entries usually don't carry a thumbnail URL, but
+        # YouTube's thumbnail URL is deterministic from the video ID, so this
+        # avoids an extra per-item yt-dlp call just to fill it in.
+        thumbnail = f"https://i.ytimg.com/vi/{youtube_id}/hqdefault.jpg"
     return AnalyzedItem(
-        youtubeId=entry.get("id") or "",
+        youtubeId=youtube_id,
         title=entry.get("title") or "Untitled",
         channelName=entry.get("channel") or entry.get("uploader"),
-        thumbnail=entry.get("thumbnail"),
+        thumbnail=thumbnail,
         duration=entry.get("duration"),
         uploadDate=entry.get("upload_date"),
     )
@@ -41,7 +51,12 @@ async def analyze_url(url: str, db: DBSession) -> AnalyzeResponse:
     validated = validate_youtube_url(url)
     qualities = get_available_qualities(db)
 
-    data = await ytdlp_runner.dump_json(validated)
+    # --flat-playlist keeps a playlist's enumeration fast (no per-video full
+    # metadata extraction, which previously made playlists blow past
+    # ANALYZE_TIMEOUT_SECONDS and surface as a client-side network error) -
+    # for a plain single-video URL this has no effect, yt-dlp still returns
+    # its full metadata directly.
+    data = await ytdlp_runner.dump_json(validated, flat_playlist=True)
 
     if data.get("_type") == "playlist" or "entries" in data:
         entries = list(data.get("entries") or [])
@@ -52,7 +67,7 @@ async def analyze_url(url: str, db: DBSession) -> AnalyzeResponse:
         items = [_to_analyzed_item(e) for e in entries]
         return AnalyzeResponse(
             sourceType="playlist",
-            title=data.get("title"),
+            playlistTitle=data.get("title"),
             thumbnail=data.get("thumbnails", [{}])[-1].get("url") if data.get("thumbnails") else None,
             channelName=data.get("channel") or data.get("uploader"),
             duration=None,
@@ -84,15 +99,17 @@ async def analyze_multi(urls: list[str], db: DBSession) -> AnalyzeResponse:
             f"{len(urls)} URLs exceed the limit of {settings.MAX_PLAYLIST_ITEMS}"
         )
 
-    items: list[AnalyzedItem] = []
-    for u in urls:
-        validated = validate_youtube_url(u)
-        data = await ytdlp_runner.dump_json(validated)
-        items.append(_to_analyzed_item(data))
+    # Run all lookups concurrently instead of sequentially - previously N
+    # pasted links took up to N * ANALYZE_TIMEOUT_SECONDS in the worst case,
+    # which regularly exceeded the frontend/tunnel's patience and surfaced
+    # as a generic network error rather than a clean timeout response.
+    validated_urls = [validate_youtube_url(u) for u in urls]
+    results = await asyncio.gather(*(ytdlp_runner.dump_json(u) for u in validated_urls))
+    items = [_to_analyzed_item(d) for d in results]
 
     return AnalyzeResponse(
         sourceType="multi",
-        title=None,
+        playlistTitle=f"{len(items)} eingefügte Videos",
         thumbnail=None,
         channelName=None,
         duration=None,

@@ -6,8 +6,8 @@ from pydantic import BaseModel
 
 
 class StorageOut(BaseModel):
-    usedTempBytes: int
-    freeDiskBytes: int
+    usedBytes: int
+    freeBytes: int
     lowSpaceWarning: bool
     retentionHours: Optional[int] = None
 
