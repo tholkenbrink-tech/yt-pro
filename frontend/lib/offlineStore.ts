@@ -28,10 +28,24 @@ const META_STORE = "meta";
 const BLOB_STORE = "blobs";
 const THUMB_STORE = "thumbs";
 
-// Must match RUNTIME_CACHE in public/sw.js - the service worker and this
+// Must derive the same name public/sw.js does - the service worker and this
 // module both write into the same Cache Storage bucket so a video's detail
 // page is available offline even if the user never opened it while online.
-const RUNTIME_CACHE = "yt-pro-runtime-v1";
+// Both independently include the current build id (from /BUILD_ID) so the
+// name rotates on every deploy, same reasoning as in sw.js.
+let buildIdPromise: Promise<string> | null = null;
+function getBuildId(): Promise<string> {
+  if (!buildIdPromise) {
+    buildIdPromise = fetch("/BUILD_ID", { cache: "no-store" })
+      .then((r) => (r.ok ? r.text() : "unknown"))
+      .then((t) => t.trim())
+      .catch(() => "unknown");
+  }
+  return buildIdPromise;
+}
+async function runtimeCacheName(): Promise<string> {
+  return `yt-pro-runtime-${await getBuildId()}`;
+}
 
 export interface OfflineMeta {
   id: string;
@@ -127,7 +141,7 @@ export async function saveOffline(
   // Best-effort: warm the runtime cache with this video's own detail page so
   // it opens from a cold, fully offline launch even if never visited before.
   try {
-    const cache = await caches.open(RUNTIME_CACHE);
+    const cache = await caches.open(await runtimeCacheName());
     await cache.add(`/library/${item.id}`);
   } catch {
     /* non-critical - the SW's own navigate handler will still cache it on
@@ -177,7 +191,7 @@ export async function removeOffline(id: string): Promise<void> {
   });
   db.close();
   try {
-    const cache = await caches.open(RUNTIME_CACHE);
+    const cache = await caches.open(await runtimeCacheName());
     await cache.delete(`/library/${id}`);
   } catch {
     /* non-critical */

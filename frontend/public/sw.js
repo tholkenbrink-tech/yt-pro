@@ -3,16 +3,33 @@
 // must NEVER cache video bytes. next-pwa/serwist route-matching config can
 // be easy to get subtly wrong (e.g. a broad runtimeCaching regex swallowing
 // /api/* by accident); an explicit allow-list here is easier to verify.
-const SHELL_CACHE = "yt-pro-shell-v1";
 
-// Runtime cache for app-shell pages and Next.js build assets, so a cold PWA
-// launch with zero connectivity can still render pages the user has already
-// opened at least once while online. Must match the RUNTIME_CACHE name in
-// lib/offlineStore.ts, which also writes into this cache directly when a
-// video is saved for offline playback. Still never anything video- or
-// API-related - see isNeverCachePath below, unchanged.
-const RUNTIME_CACHE = "yt-pro-runtime-v1";
-const KNOWN_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
+// Cache names include the current Next.js build id (served at /BUILD_ID,
+// generated fresh by every `next build`), so every deploy gets its own
+// cache namespace automatically - the activate handler below then deletes
+// every cache that doesn't match the CURRENT build id, so old builds'
+// cached JS/HTML never lingers and a redeploy never requires a manual
+// "clear site data" to see the new version.
+let buildIdPromise = null;
+function getBuildId() {
+  if (!buildIdPromise) {
+    buildIdPromise = fetch("/BUILD_ID", { cache: "no-store" })
+      .then((r) => (r.ok ? r.text() : "unknown"))
+      .then((t) => t.trim())
+      .catch(() => "unknown");
+  }
+  return buildIdPromise;
+}
+function shellCacheName() {
+  return getBuildId().then((id) => `yt-pro-shell-${id}`);
+}
+function runtimeCacheName() {
+  return getBuildId().then((id) => `yt-pro-runtime-${id}`);
+}
+
+// Must match the RUNTIME_CACHE naming in lib/offlineStore.ts, which also
+// writes into this cache directly when a video is saved for offline
+// playback - both independently derive the same name from /BUILD_ID.
 
 // Only the app shell / static assets are precached - never anything video-
 // or API-related.
@@ -26,8 +43,8 @@ const SHELL_ASSETS = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches
-      .open(SHELL_CACHE)
+    shellCacheName()
+      .then((name) => caches.open(name))
       .then((cache) => cache.addAll(SHELL_ASSETS))
       .then(() => self.skipWaiting())
   );
@@ -35,11 +52,14 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys.filter((key) => !KNOWN_CACHES.includes(key)).map((key) => caches.delete(key))
+    Promise.all([shellCacheName(), runtimeCacheName()])
+      .then(([shellName, runtimeName]) =>
+        caches.keys().then((keys) =>
+          Promise.all(
+            keys
+              .filter((key) => key !== shellName && key !== runtimeName)
+              .map((key) => caches.delete(key))
+          )
         )
       )
       .then(() => self.clients.claim())
@@ -71,14 +91,16 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     // Network-first so users always see fresh content when online, but
-    // every successful visit is cached into RUNTIME_CACHE so the same page
-    // can be reopened from a cold, fully offline launch later. Only then
-    // does it fall back to the generic /offline page.
+    // every successful visit is cached (into the current build's runtime
+    // cache) so the same page can be reopened from a cold, fully offline
+    // launch later. Only then does it fall back to the generic /offline page.
     event.respondWith(
       fetch(request)
         .then((response) => {
           if (response.ok) {
-            caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, response.clone()));
+            runtimeCacheName()
+              .then((name) => caches.open(name))
+              .then((cache) => cache.put(request, response.clone()));
           }
           return response;
         })
@@ -100,7 +122,9 @@ self.addEventListener("fetch", (event) => {
         const network = fetch(request)
           .then((response) => {
             if (response.ok) {
-              caches.open(SHELL_CACHE).then((cache) => cache.put(request, response.clone()));
+              shellCacheName()
+                .then((name) => caches.open(name))
+                .then((cache) => cache.put(request, response.clone()));
             }
             return response;
           })
@@ -120,7 +144,9 @@ self.addEventListener("fetch", (event) => {
         if (cached) return cached;
         return fetch(request).then((response) => {
           if (response.ok) {
-            caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, response.clone()));
+            runtimeCacheName()
+              .then((name) => caches.open(name))
+              .then((cache) => cache.put(request, response.clone()));
           }
           return response;
         });
