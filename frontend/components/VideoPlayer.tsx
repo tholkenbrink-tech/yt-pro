@@ -363,13 +363,6 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
           normal (foreground) playback. */}
       <audio ref={shadowAudioRef} src={src} preload="none" className="hidden" />
 
-      {resumePosition !== null && (
-        <ResumePlaybackPrompt
-          positionLabel={formatDuration(resumePosition)}
-          onRestart={restartFromBeginning}
-        />
-      )}
-
       {isOfflineSource && (
         <p className="mt-2 text-xs text-text-muted">
           Offline gespeichert - wird von diesem Gerät abgespielt.
@@ -387,19 +380,27 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
         </div>
       )}
 
-      <div className="mt-2 flex items-center justify-end gap-2">
-        <BackgroundAudioButton
-          active={backgroundPlaybackMode === "audio"}
-          onActivate={() => selectBackgroundPlaybackMode("audio")}
-        />
-        {settingsRef.current.showPipButton && (
-          <PictureInPictureButton
-            videoRef={videoRef}
-            active={backgroundPlaybackMode === "pip"}
-            onActivate={() => selectBackgroundPlaybackMode("pip")}
-            onDeactivate={() => selectBackgroundPlaybackMode("audio")}
+      <div className="mt-2 flex items-center justify-between gap-2">
+        {resumePosition !== null && (
+          <ResumePlaybackPrompt
+            positionLabel={formatDuration(resumePosition)}
+            onRestart={restartFromBeginning}
           />
         )}
+        <div className="ml-auto flex items-center gap-2">
+          <BackgroundAudioButton
+            active={backgroundPlaybackMode === "audio"}
+            onActivate={() => selectBackgroundPlaybackMode("audio")}
+          />
+          {settingsRef.current.showPipButton && (
+            <PictureInPictureButton
+              videoRef={videoRef}
+              active={backgroundPlaybackMode === "pip"}
+              onActivate={() => selectBackgroundPlaybackMode("pip")}
+              onDeactivate={() => selectBackgroundPlaybackMode("audio")}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
