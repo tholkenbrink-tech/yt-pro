@@ -21,19 +21,8 @@ def _fake_run_download(args, on_progress_line=None):
     return 0
 
 
-def _fake_run_ffmpeg(args, on_progress_line=None):
-    # args = [..., <output_path>] - the encode target is always the last arg.
-    output_path = args[-1]
-    with open(output_path, "wb") as f:
-        f.write(b"fake encoded bytes")
-    return 0
-
-
 def test_job_progresses_through_full_state_machine(db_session, test_user, monkeypatch):
     monkeypatch.setattr(download_job.ytdlp_runner, "run_download", _fake_run_download)
-    # "720p" now mandates a fixed encode target (see profiles_seed.py), so
-    # process_job always runs the ffmpeg encode step too.
-    monkeypatch.setattr(download_job.ytdlp_runner, "run_ffmpeg", _fake_run_ffmpeg)
 
     job = create_job(
         db_session,
@@ -56,7 +45,7 @@ def test_job_progresses_through_full_state_machine(db_session, test_user, monkey
     assert item.status == Status.READY.value
     assert item.mediaPath is not None
     assert os.path.exists(item.mediaPath)
-    assert item.fileSize == len(b"fake encoded bytes")
+    assert item.fileSize == len(b"fake video bytes")
     # Default retention is "manual delete" (no AppSettings row => no auto-
     # expiry) - files live on the NAS, not ephemeral storage.
     assert item.expiresAt is None

@@ -29,8 +29,6 @@ PROGRESS_RE = re.compile(
     r"(?:\s+ETA\s+(?P<eta>[\d:]+))?"
 )
 
-FFMPEG_TIME_RE = re.compile(r"time=(?P<h>\d+):(?P<m>\d+):(?P<s>[\d.]+)")
-
 _UNIT_MULTIPLIERS = {"B": 1, "KiB": 1024, "MiB": 1024**2, "GiB": 1024**3}
 
 
@@ -105,41 +103,6 @@ def _make_progress_handler(db, item: DownloadItem, job: DownloadJob):
         job.downloadedBytes = item.downloadedBytes
         job.estimatedTotalBytes = item.estimatedTotalBytes
         db.commit()
-
-    return handler
-
-
-def _make_encode_progress_handler(db, item: DownloadItem, job: DownloadJob, duration_seconds: Optional[float]):
-    """Same idea as _make_progress_handler but for the ffmpeg encode pass -
-    without this, a long transcode (minutes, sometimes much longer than
-    the source's own runtime on software-only encoding) left the progress
-    bar frozen at the download phase's final value, which reads as "stuck"
-    even though it's genuinely still working."""
-    last_logged_pct = -1
-
-    def handler(line: str):
-        nonlocal last_logged_pct
-        match = FFMPEG_TIME_RE.search(line)
-        if not match:
-            if line.strip():
-                logger.info("ffmpeg[%s]: %s", item.id, line.strip())
-            return
-        if not duration_seconds or duration_seconds <= 0:
-            return
-
-        elapsed = (
-            int(match.group("h")) * 3600 + int(match.group("m")) * 60 + float(match.group("s"))
-        )
-        pct = max(0.0, min(100.0, (elapsed / duration_seconds) * 100))
-
-        item.progress = pct
-        job.progress = pct
-        db.commit()
-
-        logged_pct = int(pct)
-        if logged_pct != last_logged_pct and logged_pct % 10 == 0:
-            last_logged_pct = logged_pct
-            logger.info("ffmpeg[%s]: encoding %.0f%%", item.id, pct)
 
     return handler
 
@@ -249,55 +212,24 @@ def _process_item(db, job: DownloadJob, item: DownloadItem, profile: DownloadPro
         if not produced:
             raise RuntimeError("yt-dlp did not produce an output file")
 
-        # Kept UUID-named through the whole download/encode pipeline (every
-        # intermediate step derives its own output name from this one via
-        # os.path.splitext, so it must stay simple and collision-free) - only
-        # renamed to something human-readable at the very end, once, below.
+        # Kept UUID-named through the download step - only renamed to
+        # something human-readable at the very end, once, below.
         final_path = os.path.join(out_dir, f"{item.id}{os.path.splitext(produced)[1]}")
         if produced != final_path:
             os.replace(produced, final_path)
 
-        if profile.videoBitrateKbps is not None:
-            # Only transcode to the profile's target bitrate when the source
-            # actually exceeds it - YouTube's own encode (often VP9/AV1) is
-            # frequently already smaller than a fixed H.264 target bitrate
-            # would produce, so forcing every download through the same cap
-            # regardless of source size wasted time and sometimes produced a
-            # LARGER file than the original. 15% headroom avoids re-encoding
-            # for marginal overages that aren't worth the cost.
-            target_kbps = profile.videoBitrateKbps + (profile.audioBitrateKbps or 0)
-            actual_kbps = ytdlp_runner.probe_bitrate_kbps(final_path)
-            video_codec, audio_codec = ytdlp_runner.probe_codecs(final_path)
-            codec_ok = (video_codec is None or video_codec in _COMPATIBLE_VIDEO_CODECS) and (
-                audio_codec is None or audio_codec in _COMPATIBLE_AUDIO_CODECS
-            )
-            already_small_enough = actual_kbps is not None and actual_kbps <= target_kbps * 1.15
-
-            if already_small_enough and codec_ok:
-                conversion_note = "no_conversion"
-            elif already_small_enough:
-                # Small enough already - only fix the codec, don't also
-                # force it down to the target bitrate.
-                _set_status(db, job, item, Status.OPTIMIZING_FOR_IPHONE)
-                final_path = _reencode_for_iphone(db, job, item, final_path, profile)
-                conversion_note = "converted_for_iphone"
-            else:
-                _set_status(db, job, item, Status.OPTIMIZING_FOR_IPHONE)
-                final_path = _encode_to_profile_spec(db, job, item, final_path, profile)
-                conversion_note = "converted_for_iphone"
-        else:
-            needs_conversion, conversion_note = _plan_codec_compatibility(final_path, profile, selector)
-            if needs_conversion:
-                _set_status(db, job, item, Status.OPTIMIZING_FOR_IPHONE)
-                final_path = _reencode_for_iphone(db, job, item, final_path, profile)
+        # No re-encode pass: offer the file yt-dlp/ffmpeg already produced
+        # as-is (whatever codec/bitrate the source came in) rather than
+        # transcoding for iPhone/profile-spec compatibility - that step
+        # could take far longer than the download itself for marginal gain.
+        was_merged = "+" in selector
+        conversion_note = "merged_only" if was_merged else "no_conversion"
 
         _set_status(db, job, item, Status.FINALIZING)
 
         # Rename from the UUID working name to the video's title now that
         # processing is done, so browsing the NAS share directly (not just
-        # through the app) is actually navigable - the extension is read
-        # from the real produced file, not assumed, since a re-encode above
-        # may have changed the container.
+        # through the app) is actually navigable.
         final_name = sanitize_filename(item.title, default=item.youtubeId, extension=os.path.splitext(final_path)[1])
         final_path = _finalize_media_path(out_dir, final_path, final_name, item.id)
 
@@ -319,95 +251,6 @@ def _process_item(db, job: DownloadJob, item: DownloadItem, profile: DownloadPro
         job.errorMessage = item.errorMessage
         db.commit()
         _cleanup_partial_files(out_dir, item.id)
-
-
-_COMPATIBLE_VIDEO_CODECS = {"h264", "avc1", "hevc", "h265"}
-_COMPATIBLE_AUDIO_CODECS = {"aac", "mp4a"}
-
-_ENCODER_BY_CODEC = {"hevc": "libx265", "h265": "libx265", "h264": "libx264", "avc1": "libx264"}
-
-
-def _plan_codec_compatibility(path: str, profile: DownloadProfile, selector: str) -> tuple[bool, str]:
-    """Inspects the produced file's actual codecs and decides which of the three
-    transparency states (§8) applies, and whether a re-encode is needed. Unknown
-    codecs (ffprobe unavailable/failed) are treated as "leave it alone" rather
-    than triggering an unnecessary re-encode."""
-    was_merged = "+" in selector
-    video_codec, audio_codec = ytdlp_runner.probe_codecs(path)
-
-    if profile.audioOnly:
-        if audio_codec is None or audio_codec in _COMPATIBLE_AUDIO_CODECS:
-            return False, "no_conversion"
-        return True, "converted_for_iphone"
-
-    if video_codec is None and audio_codec is None:
-        return False, ("merged_only" if was_merged else "no_conversion")
-
-    compatible = (
-        (video_codec is None or video_codec in _COMPATIBLE_VIDEO_CODECS)
-        and (audio_codec is None or audio_codec in _COMPATIBLE_AUDIO_CODECS)
-    )
-    if compatible:
-        return False, ("merged_only" if was_merged else "no_conversion")
-    return True, "converted_for_iphone"
-
-
-def _reencode_for_iphone(db, job: DownloadJob, item: DownloadItem, path: str, profile: DownloadProfile) -> str:
-    converted_path = f"{os.path.splitext(path)[0]}.converted.mp4"
-    if profile.audioOnly:
-        args = ["ffmpeg", "-y", "-i", path, "-vn", "-c:a", "aac", converted_path]
-    else:
-        args = [
-            "ffmpeg", "-y", "-i", path,
-            "-c:v", "libx264", "-c:a", "aac", "-movflags", "+faststart",
-            converted_path,
-        ]
-    duration = ytdlp_runner.probe_duration(path)
-    handler = _make_encode_progress_handler(db, item, job, duration)
-    returncode = ytdlp_runner.run_ffmpeg(args, on_progress_line=handler)
-    if returncode != 0 or not os.path.exists(converted_path):
-        raise RuntimeError("ffmpeg re-encode for iPhone compatibility failed")
-    os.remove(path)
-    return converted_path
-
-
-def _encode_to_profile_spec(db, job: DownloadJob, item: DownloadItem, path: str, profile: DownloadProfile) -> str:
-    """Transcodes to the profile's exact target spec (codec, bitrate, fps,
-    pixel format) - used for profiles that mandate a fixed output size
-    rather than "just make it playable" (see _reencode_for_iphone for that
-    lighter-touch path, still used by "original")."""
-    converted_path = f"{os.path.splitext(path)[0]}.encoded.mp4"
-    encoder = _ENCODER_BY_CODEC.get(profile.preferredVideoCodec or "", "libx265")
-    # "fast" trades a little compression efficiency for meaningfully quicker
-    # encoding - since -b:v pins the output size regardless of preset, the
-    # only real cost is slightly lower quality at that fixed bitrate, not a
-    # bigger file. Software x265 default ("medium") was the main reason a
-    # single video's encode step could run far longer than its own runtime.
-    args = [
-        "ffmpeg", "-y", "-i", path,
-        "-c:v", encoder,
-        "-preset", "fast",
-        "-b:v", f"{profile.videoBitrateKbps}k",
-        "-pix_fmt", profile.pixelFormat or "yuv420p",
-        "-c:a", "aac",
-        "-b:a", f"{profile.audioBitrateKbps or 128}k",
-        "-ac", "2",
-        "-movflags", "+faststart",
-    ]
-    if profile.maxFps:
-        # A ceiling, not a floor - yt-dlp already selected a source at/under
-        # this resolution, but doesn't guarantee fps, so this still matters
-        # for e.g. 60fps source clips.
-        args += ["-r", str(profile.maxFps)]
-    args.append(converted_path)
-
-    duration = ytdlp_runner.probe_duration(path)
-    handler = _make_encode_progress_handler(db, item, job, duration)
-    returncode = ytdlp_runner.run_ffmpeg(args, on_progress_line=handler)
-    if returncode != 0 or not os.path.exists(converted_path):
-        raise RuntimeError("ffmpeg encode to target profile failed")
-    os.remove(path)
-    return converted_path
 
 
 def _finalize_media_path(out_dir: str, current_path: str, desired_name: str, item_id: str) -> str:
