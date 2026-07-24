@@ -9,6 +9,7 @@ import { deriveMediaState } from "@/lib/mediaStateConfig";
 import { MediaStatusBadge } from "./MediaStatusBadge";
 import { SourceBadge } from "./SourceBadge";
 import { ConfirmationDialog } from "./ConfirmationDialog";
+import { IOSSaveInstructions, SEEN_INSTRUCTIONS_KEY } from "./IOSSaveInstructions";
 import { useToast } from "./ToastProvider";
 import { formatBytes, formatDate, formatDuration } from "@/lib/format";
 import { isOffline, removeOffline, saveOffline } from "@/lib/offlineStore";
@@ -25,6 +26,8 @@ interface Props {
 export function MediaCard({ item, onChanged, showOwner }: Props) {
   const [busy, setBusy] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showRemoveOfflineConfirm, setShowRemoveOfflineConfirm] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
   const [offline, setOffline] = useState(false);
   const [savingOffline, setSavingOffline] = useState(false);
   const [saveProgressPct, setSaveProgressPct] = useState<number | null>(null);
@@ -43,19 +46,12 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
     };
   }, [item.id]);
 
-  const toggleOffline = async () => {
-    if (offline) {
-      setSavingOffline(true);
-      try {
-        await removeOffline(item.id);
-        setOffline(false);
-        showToast("Offline-Kopie entfernt");
-      } finally {
-        setSavingOffline(false);
-      }
-      return;
-    }
+  const startOffline = async () => {
     const toDevice = shouldDownloadToDevice();
+    if (toDevice && typeof window !== "undefined" && localStorage.getItem(SEEN_INSTRUCTIONS_KEY) !== "1") {
+      setShowInstructions(true);
+      localStorage.setItem(SEEN_INSTRUCTIONS_KEY, "1");
+    }
     setSavingOffline(true);
     setSaveProgressPct(0);
     try {
@@ -71,6 +67,26 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
     } finally {
       setSavingOffline(false);
       setSaveProgressPct(null);
+    }
+  };
+
+  const removeOfflineCopy = async () => {
+    setSavingOffline(true);
+    try {
+      await removeOffline(item.id);
+      setOffline(false);
+      setShowRemoveOfflineConfirm(false);
+      showToast("Offline-Kopie entfernt");
+    } finally {
+      setSavingOffline(false);
+    }
+  };
+
+  const handleOfflineButtonClick = () => {
+    if (offline) {
+      setShowRemoveOfflineConfirm(true);
+    } else {
+      startOffline();
     }
   };
 
@@ -163,7 +179,7 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
           type="button"
           aria-label={offline ? "Heruntergeladene Kopie entfernen" : "Herunterladen (Gerät + offline in der App)"}
           disabled={savingOffline}
-          onClick={toggleOffline}
+          onClick={handleOfflineButtonClick}
           className={`flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base disabled:opacity-50 ${
             offline ? "border-success bg-success/15 text-success" : "border-border"
           }`}
@@ -213,6 +229,21 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
         onConfirm={deleteFromServer}
         onCancel={() => setShowDeleteConfirm(false)}
       />
+
+      <ConfirmationDialog
+        open={showRemoveOfflineConfirm}
+        title="Offline-Kopie entfernen?"
+        description="Die Datei wird aus der App entfernt. Falls du sie zusätzlich auf dein Gerät heruntergeladen hast (z. B. in Dateien), bleibt diese davon unberührt und muss dort separat gelöscht werden."
+        confirmLabel="Entfernen"
+        destructive
+        busy={savingOffline}
+        onConfirm={removeOfflineCopy}
+        onCancel={() => setShowRemoveOfflineConfirm(false)}
+      />
+
+      {showInstructions && (
+        <IOSSaveInstructions onClose={() => setShowInstructions(false)} />
+      )}
     </div>
   );
 }

@@ -84,24 +84,29 @@ export async function isAvailable(): Promise<boolean> {
   return typeof indexedDB !== "undefined";
 }
 
-function sanitizeFileName(name: string): string {
-  return name.replace(/[/\\?%*:|"<>]/g, "_").trim() || "video";
-}
-
-function extensionFor(mimeType?: string): string {
-  if (mimeType?.includes("m4a") || mimeType?.startsWith("audio/")) return "m4a";
-  return "mp4";
-}
-
-/** Saves offline for in-app playback AND triggers a normal browser download
- * of the same bytes (one fetch, two destinations) - so "offline in the
- * webapp" and "on the device, usable by other apps like Infuse" are the
- * same action instead of two separate, confusing buttons. */
+/** Saves offline for in-app playback (IndexedDB) and, unless the caller
+ * opts out (e.g. the WLAN-only gate), also hands the file off to the
+ * browser's native download manager for an on-device copy. These are two
+ * separate transfers on purpose: the native download is OS-level and keeps
+ * running even if the tab is backgrounded or the app is switched away from,
+ * which a JS-driven fetch never survives on iOS Safari (no Background Fetch
+ * API support there). The in-app copy stays best-effort - if the tab is
+ * left before this fetch finishes, it simply isn't saved yet and the
+ * offline button will offer to save it again next time. */
 export async function saveOffline(
   item: OfflineSourceItem,
   onProgress?: (pct: number) => void,
   triggerDeviceDownload = true
 ): Promise<void> {
+  if (triggerDeviceDownload) {
+    const link = document.createElement("a");
+    link.href = api.downloadUrl(item.id);
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
   const res = await fetch(api.streamUrl(item.id), { credentials: "include" });
   if (!res.ok) throw new Error(`Stream fetch failed: ${res.status}`);
   const blob = await readBlobWithProgress(res, onProgress);
@@ -146,20 +151,6 @@ export async function saveOffline(
   } catch {
     /* non-critical - the SW's own navigate handler will still cache it on
        the next successful visit */
-  }
-
-  if (triggerDeviceDownload) {
-    const fileName = `${sanitizeFileName(item.title)}.${extensionFor(item.mimeType)}`;
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = objectUrl;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    // Give the browser's download handoff time to actually start reading
-    // the blob before the URL is revoked.
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
   }
 }
 

@@ -1,5 +1,10 @@
 "use client";
 
+/** Shared across every surface that can trigger a device download (Aktivität,
+ * Mediathek, video detail page) so the "how to save it" popup only ever
+ * shows once app-wide, not once per surface. */
+export const SEEN_INSTRUCTIONS_KEY = "yt-pro:ios-instructions-seen";
+
 const STEPS = [
   "Tippe oben auf \"Auf iPhone laden\" - der Download startet im Hintergrund.",
   "Achte danach kurz auf die Adressleiste ganz oben: Dort erscheint ein kleiner Pfeil nach unten (Download-Symbol). Siehst du ihn nicht sofort, tippe einmal auf die Adressleiste, um sie einzublenden.",

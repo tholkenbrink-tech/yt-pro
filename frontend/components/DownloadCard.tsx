@@ -6,13 +6,11 @@ import type { JobItem } from "@/lib/types";
 import { api } from "@/lib/api";
 import { formatBytes, formatCountdown, formatDuration } from "@/lib/format";
 import { conversionNoteLabel } from "@/lib/statusLabels";
-import { IOSSaveInstructions } from "./IOSSaveInstructions";
+import { IOSSaveInstructions, SEEN_INSTRUCTIONS_KEY } from "./IOSSaveInstructions";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { useToast } from "./ToastProvider";
 import { isOffline, removeOffline, saveOffline } from "@/lib/offlineStore";
 import { shouldDownloadToDevice } from "@/lib/wifiGate";
-
-const SEEN_INSTRUCTIONS_KEY = "yt-pro:ios-instructions-seen";
 
 interface Props {
   item: JobItem;
@@ -22,6 +20,7 @@ interface Props {
 export function DownloadCard({ item, onChanged }: Props) {
   const [showInstructions, setShowInstructions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showRemoveOfflineConfirm, setShowRemoveOfflineConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [offline, setOffline] = useState(false);
   const [savingOffline, setSavingOffline] = useState(false);
@@ -46,18 +45,19 @@ export function DownloadCard({ item, onChanged }: Props) {
     }
   };
 
-  const toggleOffline = async () => {
-    if (offline) {
-      setSavingOffline(true);
-      try {
-        await removeOffline(item.id);
-        setOffline(false);
-        showToast("Heruntergeladene Kopie entfernt");
-      } finally {
-        setSavingOffline(false);
-      }
-      return;
+  const removeOfflineCopy = async () => {
+    setSavingOffline(true);
+    try {
+      await removeOffline(item.id);
+      setOffline(false);
+      setShowRemoveOfflineConfirm(false);
+      showToast("Heruntergeladene Kopie entfernt");
+    } finally {
+      setSavingOffline(false);
     }
+  };
+
+  const startOffline = async () => {
     const toDevice = shouldDownloadToDevice();
     if (toDevice) handleFirstTap();
     setSavingOffline(true);
@@ -87,6 +87,14 @@ export function DownloadCard({ item, onChanged }: Props) {
     } finally {
       setSavingOffline(false);
       setSaveProgressPct(null);
+    }
+  };
+
+  const handleOfflineButtonClick = () => {
+    if (offline) {
+      setShowRemoveOfflineConfirm(true);
+    } else {
+      startOffline();
     }
   };
 
@@ -152,7 +160,7 @@ export function DownloadCard({ item, onChanged }: Props) {
       <button
         type="button"
         disabled={savingOffline}
-        onClick={toggleOffline}
+        onClick={handleOfflineButtonClick}
         className={`mt-3 block w-full rounded-lg px-4 py-3 text-center font-medium active:opacity-80 disabled:opacity-50 ${
           offline
             ? "border border-success bg-success/15 text-success"
@@ -207,6 +215,17 @@ export function DownloadCard({ item, onChanged }: Props) {
         busy={busy}
         onConfirm={deleteFromServer}
         onCancel={() => setShowDeleteConfirm(false)}
+      />
+
+      <ConfirmationDialog
+        open={showRemoveOfflineConfirm}
+        title="Offline-Kopie entfernen?"
+        description="Die Datei wird aus der App entfernt. Falls du sie zusätzlich auf dein Gerät heruntergeladen hast (z. B. in Dateien), bleibt diese davon unberührt und muss dort separat gelöscht werden."
+        confirmLabel="Entfernen"
+        destructive
+        busy={savingOffline}
+        onConfirm={removeOfflineCopy}
+        onCancel={() => setShowRemoveOfflineConfirm(false)}
       />
     </div>
   );

@@ -8,6 +8,7 @@ import { VideoPlayer } from "@/components/VideoPlayer";
 import { SourceBadge } from "@/components/SourceBadge";
 import { formatBytes, formatDate, formatDuration } from "@/lib/format";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
+import { IOSSaveInstructions, SEEN_INSTRUCTIONS_KEY } from "@/components/IOSSaveInstructions";
 import { getOfflineMeta, isOffline, removeOffline, saveOffline } from "@/lib/offlineStore";
 import { shouldDownloadToDevice } from "@/lib/wifiGate";
 import { useToast } from "@/components/ToastProvider";
@@ -42,6 +43,8 @@ export default function VideoPlayerPage() {
   const [savingOffline, setSavingOffline] = useState(false);
   const [saveProgressPct, setSaveProgressPct] = useState<number | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showRemoveOfflineConfirm, setShowRemoveOfflineConfirm] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -126,19 +129,24 @@ export default function VideoPlayerPage() {
     }
   };
 
-  const toggleOffline = async () => {
-    if (hasOfflineCopy) {
-      setSavingOffline(true);
-      try {
-        await removeOffline(item.id);
-        setHasOfflineCopy(false);
-        showToast("Offline-Kopie entfernt");
-      } finally {
-        setSavingOffline(false);
-      }
-      return;
+  const removeOfflineCopy = async () => {
+    setSavingOffline(true);
+    try {
+      await removeOffline(item.id);
+      setHasOfflineCopy(false);
+      setShowRemoveOfflineConfirm(false);
+      showToast("Offline-Kopie entfernt");
+    } finally {
+      setSavingOffline(false);
     }
+  };
+
+  const startOffline = async () => {
     const toDevice = shouldDownloadToDevice();
+    if (toDevice && typeof window !== "undefined" && localStorage.getItem(SEEN_INSTRUCTIONS_KEY) !== "1") {
+      setShowInstructions(true);
+      localStorage.setItem(SEEN_INSTRUCTIONS_KEY, "1");
+    }
     setSavingOffline(true);
     setSaveProgressPct(0);
     try {
@@ -154,6 +162,14 @@ export default function VideoPlayerPage() {
     } finally {
       setSavingOffline(false);
       setSaveProgressPct(null);
+    }
+  };
+
+  const handleOfflineButtonClick = () => {
+    if (hasOfflineCopy) {
+      setShowRemoveOfflineConfirm(true);
+    } else {
+      startOffline();
     }
   };
 
@@ -209,7 +225,7 @@ export default function VideoPlayerPage() {
           type="button"
           aria-label={hasOfflineCopy ? "Heruntergeladene Kopie entfernen" : "Herunterladen (Gerät + offline in der App)"}
           disabled={savingOffline}
-          onClick={toggleOffline}
+          onClick={handleOfflineButtonClick}
           className={`flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base disabled:opacity-50 ${
             hasOfflineCopy ? "border-success bg-success/15 text-success" : "border-border"
           }`}
@@ -253,6 +269,21 @@ export default function VideoPlayerPage() {
         onConfirm={deleteFromServer}
         onCancel={() => setShowDeleteConfirm(false)}
       />
+
+      <ConfirmationDialog
+        open={showRemoveOfflineConfirm}
+        title="Offline-Kopie entfernen?"
+        description="Die Datei wird aus der App entfernt. Falls du sie zusätzlich auf dein Gerät heruntergeladen hast (z. B. in Dateien), bleibt diese davon unberührt und muss dort separat gelöscht werden."
+        confirmLabel="Entfernen"
+        destructive
+        busy={savingOffline}
+        onConfirm={removeOfflineCopy}
+        onCancel={() => setShowRemoveOfflineConfirm(false)}
+      />
+
+      {showInstructions && (
+        <IOSSaveInstructions onClose={() => setShowInstructions(false)} />
+      )}
     </main>
   );
 }
