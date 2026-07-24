@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.core.database import Base, SessionLocal, engine
 from app.core.limiter import limiter
 from app.routers import admin, analyze, auth, downloads, history, jobs, library, sources, storage, users
-from app.services.seed import seed_users
+from app.services.seed import merge_duplicate_users, seed_users
 
 
 @asynccontextmanager
@@ -19,6 +19,7 @@ async def lifespan(_app: FastAPI):
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
+        merge_duplicate_users(db)
         seed_users(db)
     finally:
         db.close()
