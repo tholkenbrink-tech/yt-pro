@@ -272,11 +272,20 @@ async def _run_check(db, source: MonitoredSource, run: SourceCheckRun) -> None:
         if source.mode == MonitoredSourceMode.CONFIRM_FIRST:
             item_status = MonitoredSourceItemStatus.AWAITING_CONFIRMATION
 
+        thumbnail = entry.get("thumbnail")
+        if not thumbnail and entry.get("thumbnails"):
+            thumbnail = entry["thumbnails"][-1].get("url")
+        if not thumbnail and youtube_id:
+            # --flat-playlist entries usually don't carry a thumbnail URL, but
+            # YouTube's thumbnail URL is deterministic from the video ID, so this
+            # avoids an extra per-item yt-dlp call just to fill it in.
+            thumbnail = f"https://i.ytimg.com/vi/{youtube_id}/hqdefault.jpg"
+
         source_item = MonitoredSourceItem(
             monitoredSourceId=source.id,
             youtubeId=youtube_id,
             title=entry.get("title") or youtube_id,
-            thumbnailUrl=entry.get("thumbnail"),
+            thumbnailUrl=thumbnail,
             channelName=entry.get("channel") or entry.get("uploader"),
             publishedAt=published_at,
             durationSeconds=duration,
