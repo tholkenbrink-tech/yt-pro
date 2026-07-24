@@ -4,7 +4,13 @@
  * notifications). Best-effort localStorage persistence, called out as a
  * deviation in the Phase 2 report - if/when the backend grows matching
  * endpoints these should move to `lib/api.ts` instead.
+ *
+ * Keys are namespaced per logged-in family account (see currentUser.ts) so
+ * thorben/indie/tamara sharing one device/browser don't clobber each other's
+ * defaults.
  */
+
+import { getCachedUserId } from "./currentUser";
 
 export interface DownloadSettings {
   defaultQuality: string;
@@ -49,10 +55,15 @@ export const DEFAULT_STORAGE_SETTINGS: StorageSettings = {
   warningThresholdBytes: null,
 };
 
-function read<T>(key: string, fallback: T): T {
+function namespacedKey(baseKey: string): string {
+  const userId = getCachedUserId();
+  return userId ? `${baseKey}:${userId}` : baseKey;
+}
+
+function read<T>(baseKey: string, fallback: T): T {
   if (typeof localStorage === "undefined") return fallback;
   try {
-    const raw = localStorage.getItem(key);
+    const raw = localStorage.getItem(namespacedKey(baseKey));
     if (!raw) return fallback;
     return { ...fallback, ...JSON.parse(raw) };
   } catch {
@@ -60,10 +71,10 @@ function read<T>(key: string, fallback: T): T {
   }
 }
 
-function write<T>(key: string, fallback: T, value: Partial<T>) {
+function write<T>(baseKey: string, fallback: T, value: Partial<T>) {
   if (typeof localStorage === "undefined") return;
-  const merged = { ...read(key, fallback), ...value };
-  localStorage.setItem(key, JSON.stringify(merged));
+  const merged = { ...read(baseKey, fallback), ...value };
+  localStorage.setItem(namespacedKey(baseKey), JSON.stringify(merged));
 }
 
 const DOWNLOAD_KEY = "yt-pro:download-settings";

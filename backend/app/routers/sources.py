@@ -48,6 +48,8 @@ def _has_pending_items(db: DBSession, source_id: str) -> bool:
 def _to_out(db: DBSession, source: MonitoredSource) -> MonitoredSourceOut:
     out = MonitoredSourceOut.model_validate(source, from_attributes=True)
     out.computedStatus = source_service.compute_source_status(source, _has_pending_items(db, source.id))
+    profile = db.get(DownloadProfile, source.downloadProfileId)
+    out.quality = profile.name if profile else ""
     return out
 
 
@@ -56,6 +58,17 @@ def _get_owned_source(db: DBSession, source_id: str, user: User) -> MonitoredSou
     if not source or source.userId != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source not found")
     return source
+
+
+def _resolve_download_profile(db: DBSession, download_profile_id: str) -> DownloadProfile:
+    profile = db.get(DownloadProfile, download_profile_id)
+    if not profile:
+        profile = db.execute(
+            select(DownloadProfile).where(DownloadProfile.name == download_profile_id)
+        ).scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown downloadProfileId")
+    return profile
 
 
 @router.post("/analyze", response_model=AnalyzeSourceResponse)
@@ -87,9 +100,7 @@ async def create_source(
     body: MonitoredSourceCreate, db: DBSession = Depends(get_db), user: User = Depends(get_current_user)
 ):
     validated = validate_youtube_url(body.sourceUrl)
-    profile = db.get(DownloadProfile, body.downloadProfileId)
-    if not profile:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown downloadProfileId")
+    profile = _resolve_download_profile(db, body.downloadProfileId)
 
     data = await ytdlp_runner.dump_json(validated, flat_playlist=True)
 
@@ -101,7 +112,7 @@ async def create_source(
         externalPlaylistId=data.get("id"),
         playlistTitle=data.get("title"),
         thumbnailUrl=data.get("thumbnails", [{}])[-1].get("url") if data.get("thumbnails") else None,
-        downloadProfileId=body.downloadProfileId,
+        downloadProfileId=profile.id,
         mode=body.mode,
         scheduleType=body.scheduleType,
         cronExpression=body.cronExpression,
@@ -136,6 +147,8 @@ def update_source(
 ):
     source = _get_owned_source(db, source_id, user)
     for field, value in body.model_dump(exclude_unset=True).items():
+        if field == "downloadProfileId":
+            value = _resolve_download_profile(db, value).id
         setattr(source, field, value)
     if body.scheduleType is not None or body.cronExpression is not None:
         source.nextCheckAt = source_service.compute_next_check(

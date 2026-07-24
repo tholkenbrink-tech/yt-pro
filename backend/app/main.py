@@ -10,8 +10,8 @@ from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.core.database import Base, SessionLocal, engine
 from app.core.limiter import limiter
-from app.routers import admin, analyze, auth, downloads, history, jobs, library, sources, storage
-from app.services.seed import seed_admin_user
+from app.routers import admin, analyze, auth, downloads, history, jobs, library, sources, storage, users
+from app.services.seed import seed_users
 
 
 @asynccontextmanager
@@ -19,7 +19,7 @@ async def lifespan(_app: FastAPI):
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        seed_admin_user(db)
+        seed_users(db)
     finally:
         db.close()
     yield
@@ -47,6 +47,7 @@ app.include_router(storage.router)
 app.include_router(admin.router)
 app.include_router(library.router)
 app.include_router(sources.router)
+app.include_router(users.router)
 
 
 @app.get("/api/health")

@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { formatDuration } from "@/lib/format";
-import { getPlayerSettings } from "@/lib/playerSettings";
+import { type BackgroundPlaybackMode, getPlayerSettings } from "@/lib/playerSettings";
 import { getOfflineBlob } from "@/lib/offlineStore";
+import { BackgroundPlaybackToggle } from "./BackgroundPlaybackToggle";
 import { PictureInPictureButton } from "./PictureInPictureButton";
 import { ResumePlaybackPrompt } from "./ResumePlaybackPrompt";
 
@@ -15,9 +16,11 @@ const MARK_WATCHED_REMAINING_SECONDS = 30;
 
 interface Props {
   itemId: string;
+  title?: string;
+  channelName?: string;
 }
 
-export function VideoPlayer({ itemId }: Props) {
+export function VideoPlayer({ itemId, title, channelName }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const lastSavedAtRef = useRef(0);
   const markedWatchedRef = useRef(false);
@@ -27,6 +30,9 @@ export function VideoPlayer({ itemId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [src, setSrc] = useState<string>(() => api.streamUrl(itemId));
   const [isOfflineSource, setIsOfflineSource] = useState(false);
+  const [backgroundPlaybackMode, setBackgroundPlaybackMode] = useState<BackgroundPlaybackMode>(
+    () => settingsRef.current.backgroundPlaybackMode
+  );
 
   const saveProgress = (fireAndForget = false) => {
     const video = videoRef.current;
@@ -65,6 +71,7 @@ export function VideoPlayer({ itemId }: Props) {
 
   useEffect(() => {
     settingsRef.current = getPlayerSettings();
+    setBackgroundPlaybackMode(settingsRef.current.backgroundPlaybackMode);
     let cancelled = false;
 
     api
@@ -153,6 +160,64 @@ export function VideoPlayer({ itemId }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemId, resumePosition]);
 
+  useEffect(() => {
+    const video = videoRef.current as (HTMLVideoElement & { autoPictureInPicture?: boolean }) | null;
+    if (!video) return;
+    // Not in the JSX video-attribute typings, so set the DOM property
+    // directly - this is what makes the video follow the user into a
+    // floating window when they switch away from the tab/app, without
+    // needing a `requestPictureInPicture()` call of our own (which the
+    // browser would reject anyway outside of a user gesture).
+    video.autoPictureInPicture = backgroundPlaybackMode === "pip";
+  }, [backgroundPlaybackMode]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+
+    // Registering Media Session metadata/actions is what makes the browser
+    // treat this as legitimate background media playback - on mobile this is
+    // what keeps the audio track (and lock-screen "now playing" controls)
+    // alive after the app is backgrounded, rather than the tab being
+    // suspended.
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: title || "Video",
+      artist: channelName || "",
+    });
+
+    navigator.mediaSession.setActionHandler("play", () => video.play());
+    navigator.mediaSession.setActionHandler("pause", () => video.pause());
+    navigator.mediaSession.setActionHandler("seekbackward", (details) => {
+      video.currentTime = Math.max(0, video.currentTime - (details.seekOffset || 10));
+    });
+    navigator.mediaSession.setActionHandler("seekforward", (details) => {
+      video.currentTime = Math.min(
+        video.duration || Infinity,
+        video.currentTime + (details.seekOffset || 10)
+      );
+    });
+    navigator.mediaSession.setActionHandler("seekto", (details) => {
+      if (details.seekTime !== undefined) video.currentTime = details.seekTime;
+    });
+
+    const updatePlaybackState = () => {
+      navigator.mediaSession.playbackState = video.paused ? "paused" : "playing";
+    };
+    video.addEventListener("play", updatePlaybackState);
+    video.addEventListener("pause", updatePlaybackState);
+    updatePlaybackState();
+
+    return () => {
+      video.removeEventListener("play", updatePlaybackState);
+      video.removeEventListener("pause", updatePlaybackState);
+      navigator.mediaSession.setActionHandler("play", null);
+      navigator.mediaSession.setActionHandler("pause", null);
+      navigator.mediaSession.setActionHandler("seekbackward", null);
+      navigator.mediaSession.setActionHandler("seekforward", null);
+      navigator.mediaSession.setActionHandler("seekto", null);
+    };
+  }, [itemId, title, channelName]);
+
   const restartFromBeginning = async () => {
     setShowResumeToast(false);
     setResumePosition(null);
@@ -202,11 +267,10 @@ export function VideoPlayer({ itemId }: Props) {
         </div>
       )}
 
-      {settingsRef.current.showPipButton && (
-        <div className="mt-2 flex items-center justify-end">
-          <PictureInPictureButton videoRef={videoRef} />
-        </div>
-      )}
+      <div className="mt-2 flex items-center justify-end gap-2">
+        <BackgroundPlaybackToggle mode={backgroundPlaybackMode} onChange={setBackgroundPlaybackMode} />
+        {settingsRef.current.showPipButton && <PictureInPictureButton videoRef={videoRef} />}
+      </div>
     </div>
   );
 }

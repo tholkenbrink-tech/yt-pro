@@ -76,6 +76,9 @@ export interface JobItem {
   conversionNote: ConversionNote;
   finalFileSize?: number;
   finalFormat?: string;
+  /** Family account that started this download - only meaningful when browsing
+   * someone else's or everyone's history via the userId filter. */
+  ownerName?: string;
 }
 
 export interface Job {
@@ -143,6 +146,8 @@ export interface LibraryItem {
   keepOnServer: boolean;
   progress: LibraryItemProgress | null;
   originalUrl?: string;
+  /** Family account that downloaded this item - see JobItem.ownerName. */
+  ownerName?: string;
 }
 
 export interface LibraryQuery {
@@ -152,6 +157,9 @@ export interface LibraryQuery {
   quality?: string;
   sort?: string;
   query?: string;
+  /** Filter the shared Mediathek/Verlauf by family account: a user id, "all"
+   * for everyone, or omitted for "just me" (the default). */
+  userId?: string;
 }
 
 export type SourceMode = "discover_only" | "confirm_first" | "auto_prepare";

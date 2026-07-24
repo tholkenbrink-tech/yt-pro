@@ -44,16 +44,26 @@ def get_library(
     quality: Optional[str] = None,
     sort: Optional[str] = None,
     query: Optional[str] = None,
+    userId: Optional[str] = None,
     db: DBSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    # Family-shared Mediathek: default view is "what I downloaded", but any
+    # family member can browse another member's downloads (userId=<id>) or
+    # everyone's at once (userId=all) - there's no per-user privacy boundary
+    # in this household, just a discovery filter.
     q = (
         select(DownloadItem)
         .join(DownloadJob, DownloadItem.jobId == DownloadJob.id)
-        .where(DownloadJob.userId == user.id)
         .where(DownloadItem.status.in_(LIBRARY_STATUSES))
         .where(DownloadItem.deletedFromServerAt.is_(None))
     )
+    if userId == "all":
+        pass
+    elif userId:
+        q = q.where(DownloadJob.userId == userId)
+    else:
+        q = q.where(DownloadJob.userId == user.id)
 
     if origin == "manual":
         q = q.where(DownloadItem.isAutomaticallyPrepared.is_(False))
@@ -82,12 +92,20 @@ def get_library(
         source_names = {row.id: row.name for row in rows}
 
     job_titles: dict[str, str] = {}
+    owner_by_job: dict[str, str] = {}
     job_ids = {i.jobId for i in items}
     if job_ids:
         rows = db.execute(
             select(DownloadJob.id, DownloadJob.title).where(DownloadJob.id.in_(job_ids), DownloadJob.title.is_not(None))
         )
         job_titles = {row.id: row.title for row in rows}
+
+        rows = db.execute(
+            select(DownloadJob.id, User.name)
+            .join(User, DownloadJob.userId == User.id)
+            .where(DownloadJob.id.in_(job_ids))
+        )
+        owner_by_job = {row.id: row.name for row in rows}
 
     published_at_by_item: dict[str, datetime] = {}
     item_ids = [i.id for i in items]
@@ -153,6 +171,7 @@ def get_library(
                 sourceId=item.monitoredSourceId,
                 jobId=item.jobId,
                 playlistTitle=job_titles.get(item.jobId),
+                ownerName=owner_by_job.get(item.jobId),
                 publishedAt=published_at_by_item.get(item.id),
                 createdAt=item.createdAt,
                 expiresAt=item.expiresAt,

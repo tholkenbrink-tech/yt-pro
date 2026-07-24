@@ -49,6 +49,7 @@ class DownloadItemOut(BaseModel):
     errorMessage: Optional[str] = None
     createdAt: datetime
     updatedAt: datetime
+    ownerName: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

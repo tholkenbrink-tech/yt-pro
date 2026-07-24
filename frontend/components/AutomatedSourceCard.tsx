@@ -50,7 +50,7 @@ export function AutomatedSourceCard({ source, onChanged }: Props) {
           )}
           <p className="mt-1 text-meta text-text-muted">
             {sourceScheduleLabel(source.scheduleType)} - {sourceModeLabel(source.mode)}
-            {source.downloadProfileId ? ` - ${source.downloadProfileId}` : ""}
+            {source.quality ? ` - ${source.quality}` : ""}
           </p>
           <div className="mt-1.5">
             <SourceStatusBadge status={source.computedStatus} />

@@ -5,6 +5,11 @@ import { api } from "@/lib/api";
 import type { JobItem } from "@/lib/types";
 import { StatusPill } from "@/components/StatusPill";
 import { formatDate } from "@/lib/format";
+import { useUsers } from "@/lib/useUsers";
+
+function displayName(name: string) {
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
 
 const STATUS_FILTERS = [
   { value: "", label: "Alle" },
@@ -18,6 +23,8 @@ export default function HistoryPage() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [sort, setSort] = useState("date_desc");
+  const [userId, setUserId] = useState<string | undefined>(undefined);
+  const users = useUsers();
   const [items, setItems] = useState<JobItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +33,7 @@ export default function HistoryPage() {
     setLoading(true);
     setError(null);
     api
-      .history({ query: query || undefined, status: status || undefined, sort })
+      .history({ query: query || undefined, status: status || undefined, sort, userId })
       .then(setItems)
       .catch(() => setError("Verlauf konnte nicht geladen werden."))
       .finally(() => setLoading(false));
@@ -35,7 +42,7 @@ export default function HistoryPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, sort]);
+  }, [status, sort, userId]);
 
   const remove = async (id: string) => {
     await api.deleteHistoryItem(id);
@@ -97,6 +104,29 @@ export default function HistoryPage() {
         </select>
       </div>
 
+      {users.length > 1 && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {[
+            { value: undefined, label: "Nur ich" },
+            ...users.map((u) => ({ value: u.id, label: displayName(u.name) })),
+            { value: "all", label: "Alle" },
+          ].map((f) => (
+            <button
+              key={f.label}
+              type="button"
+              onClick={() => setUserId(f.value)}
+              className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                userId === f.value
+                  ? "border-brand bg-brand text-white dark:border-brand-dark dark:bg-brand-dark dark:text-gray-950"
+                  : "border-gray-300 dark:border-gray-700"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {loading && <p className="text-sm text-gray-500 dark:text-gray-400">Wird geladen...</p>}
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
@@ -112,6 +142,7 @@ export default function HistoryPage() {
             </div>
             <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
               {formatDate(item.createdAt)}
+              {userId && item.ownerName ? ` · 👤 ${item.ownerName}` : ""}
             </p>
             <div className="mt-2 flex gap-2">
               <button

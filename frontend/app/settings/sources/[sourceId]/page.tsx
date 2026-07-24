@@ -110,7 +110,7 @@ export default function SourceDetailPage() {
       <div className="mb-4 space-y-1 text-sm text-text-secondary">
         <p>Prüfintervall: {sourceScheduleLabel(source.scheduleType)}</p>
         <p>Modus: {sourceModeLabel(source.mode)}</p>
-        {source.downloadProfileId && <p>Qualität: {source.downloadProfileId}</p>}
+        {source.quality && <p>Qualität: {source.quality}</p>}
         {source.lastCheckedAt && <p>Zuletzt geprüft: {formatDate(source.lastCheckedAt)}</p>}
         {source.nextCheckAt && <p>Nächste Prüfung: {formatDate(source.nextCheckAt)}</p>}
       </div>

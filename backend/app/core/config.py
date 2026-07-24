@@ -19,9 +19,6 @@ class Settings(BaseSettings):
     # same registrable domain.
     COOKIE_DOMAIN: Optional[str] = None
 
-    ADMIN_USERNAME: str = "admin"
-    ADMIN_PASSWORD: str = "change-me"
-
     DEFAULT_RETENTION_HOURS: int = 24
     MAX_PLAYLIST_ITEMS: int = 50
     MAX_CONCURRENT_JOBS: int = 2

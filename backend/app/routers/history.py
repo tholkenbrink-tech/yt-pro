@@ -24,14 +24,20 @@ router = APIRouter(prefix="/api/history", tags=["history"])
 def get_history(
     q: Optional[str] = None,
     status_filter: Optional[str] = None,
+    userId: Optional[str] = None,
     db: DBSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    query = (
-        select(DownloadItem)
-        .join(DownloadJob, DownloadItem.jobId == DownloadJob.id)
-        .where(DownloadJob.userId == user.id)
-    )
+    # Same family-shared browsing model as /api/library: default to "mine",
+    # but userId=<id>/userId=all let any member look at anyone's history.
+    query = select(DownloadItem).join(DownloadJob, DownloadItem.jobId == DownloadJob.id)
+    if userId == "all":
+        pass
+    elif userId:
+        query = query.where(DownloadJob.userId == userId)
+    else:
+        query = query.where(DownloadJob.userId == user.id)
+
     if status_filter:
         query = query.where(DownloadItem.status == status_filter)
     if q:
@@ -39,7 +45,21 @@ def get_history(
         query = query.where((DownloadItem.title.ilike(like)) | (DownloadItem.channelName.ilike(like)))
 
     items = db.execute(query.order_by(DownloadItem.createdAt.desc())).scalars().all()
-    return [DownloadItemOut.model_validate(i) for i in items]
+
+    job_ids = {i.jobId for i in items}
+    owner_by_job: dict[str, str] = {}
+    if job_ids:
+        rows = db.execute(
+            select(DownloadJob.id, User.name).join(User, DownloadJob.userId == User.id).where(DownloadJob.id.in_(job_ids))
+        )
+        owner_by_job = {row.id: row.name for row in rows}
+
+    out = []
+    for i in items:
+        item_out = DownloadItemOut.model_validate(i)
+        item_out.ownerName = owner_by_job.get(i.jobId)
+        out.append(item_out)
+    return out
 
 
 def _get_owned_item(db: DBSession, item_id: str, user: User) -> DownloadItem:

@@ -63,6 +63,7 @@ class MonitoredSourceOut(BaseModel):
     playlistTitle: Optional[str] = None
     thumbnailUrl: Optional[str] = None
     downloadProfileId: str
+    quality: str = ""
     mode: str
     scheduleType: str
     cronExpression: Optional[str] = None

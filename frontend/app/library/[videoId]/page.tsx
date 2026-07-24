@@ -172,7 +172,7 @@ export default function VideoPlayerPage() {
   return (
     <main className="mx-auto max-w-2xl px-safe-left px-5 pb-4 pt-6 pr-safe-right">
       <div className="mx-auto max-w-2xl">
-        <VideoPlayer itemId={item.id} />
+        <VideoPlayer itemId={item.id} title={item.title} channelName={item.channelName} />
       </div>
 
       <h1 className="mt-4 text-card-title">{item.title}</h1>

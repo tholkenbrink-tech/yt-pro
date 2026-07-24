@@ -65,11 +65,9 @@ export default function NewSourcePage() {
       const source = await api.createSource({
         sourceUrl: url.trim(),
         name: name.trim() || preview?.playlistTitle || url.trim(),
-        // The backend's MonitoredSourceCreate expects a downloadProfileId,
-        // not a raw quality string - like Phase 1's createJob, this app
-        // uses the quality name directly as the profile identifier since
-        // there's no separate "list download profiles" endpoint in the
-        // contract.
+        // downloadProfileId is a foreign key to download_profiles.id, but
+        // there's no "list download profiles" endpoint to fetch real ids,
+        // so we send the quality name and the backend resolves it by name.
         downloadProfileId: quality,
         scheduleType: schedule,
         cronExpression: schedule === "cron" ? cronExpression : undefined,
@@ -81,8 +79,14 @@ export default function NewSourcePage() {
         onlyPublishedAfter: onlyAfter || undefined,
       });
       router.push(`/settings/sources/${source.id}`);
-    } catch {
-      setError("Quelle konnte nicht gespeichert werden.");
+    } catch (e) {
+      const detail =
+        e instanceof ApiError && e.body && typeof e.body === "object" && "detail" in e.body
+          ? String((e.body as { detail?: unknown }).detail)
+          : null;
+      setError(
+        detail ? `Quelle konnte nicht gespeichert werden: ${detail}` : "Quelle konnte nicht gespeichert werden."
+      );
     } finally {
       setSubmitting(false);
     }

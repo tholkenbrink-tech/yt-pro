@@ -33,11 +33,13 @@ RANGE_RE = re.compile(r"bytes=(\d*)-(\d*)")
 
 
 def _get_owned_item(db: DBSession, item_id: str, user: User) -> DownloadItem:
+    """Despite the name, this is no longer an ownership check: every family
+    account shares the same NAS library, so any logged-in user can stream,
+    download, or track their own progress on any item. It only guards
+    existence/expiry - actual deletion (history.delete_history_item) still
+    checks the real owner separately."""
     item = db.get(DownloadItem, item_id)
     if not item:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
-    job = db.get(DownloadJob, item.jobId)
-    if not job or job.userId != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
 
     if item.deletedFromServerAt is not None:

@@ -17,9 +17,12 @@ import { shouldDownloadToDevice } from "@/lib/wifiGate";
 interface Props {
   item: LibraryItem;
   onChanged?: () => void;
+  /** Show the "downloaded by" badge - only relevant while browsing another
+   * family member's or everyone's downloads via the user filter. */
+  showOwner?: boolean;
 }
 
-export function MediaCard({ item, onChanged }: Props) {
+export function MediaCard({ item, onChanged, showOwner }: Props) {
   const [busy, setBusy] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [offline, setOffline] = useState(false);
@@ -120,6 +123,11 @@ export function MediaCard({ item, onChanged }: Props) {
             {state !== "started" && <MediaStatusBadge state={state} />}
             {item.isAutomaticallyPrepared && (
               <SourceBadge isAutomatic sourceName={item.sourceName} />
+            )}
+            {showOwner && item.ownerName && (
+              <span className="rounded-pill border border-border px-2 py-0.5 text-meta text-text-muted">
+                👤 {item.ownerName}
+              </span>
             )}
           </div>
         </div>

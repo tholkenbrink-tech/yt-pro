@@ -8,6 +8,11 @@ import { MediaCard } from "@/components/MediaCard";
 import { Skeleton } from "@/components/Skeleton";
 import { SortSheet } from "@/components/SortSheet";
 import { listOfflineMeta } from "@/lib/offlineStore";
+import { useUsers } from "@/lib/useUsers";
+
+function displayName(name: string) {
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
 
 const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: "", label: "Alle" },
@@ -101,6 +106,7 @@ function FolderCard({ group, onOpen }: { group: FolderGroup; onOpen: () => void 
 
 export default function LibraryPage() {
   const [query, setQuery] = useState<LibraryQuery>({ sort: "date_desc" });
+  const users = useUsers();
   const [search, setSearch] = useState("");
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -221,7 +227,7 @@ export default function LibraryPage() {
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-3 flex flex-wrap gap-2">
         {STATUS_FILTERS.map((f) => (
           <button
             key={f.value}
@@ -237,6 +243,29 @@ export default function LibraryPage() {
           </button>
         ))}
       </div>
+
+      {users.length > 1 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {[
+            { value: undefined, label: "Nur ich" },
+            ...users.map((u) => ({ value: u.id, label: displayName(u.name) })),
+            { value: "all", label: "Alle" },
+          ].map((f) => (
+            <button
+              key={f.label}
+              type="button"
+              onClick={() => setQuery((q) => ({ ...q, userId: f.value }))}
+              className={`min-h-11 rounded-pill border px-3 py-1.5 text-xs font-medium ${
+                (query.userId ?? undefined) === f.value
+                  ? "border-accent bg-accent text-white"
+                  : "border-border text-text-secondary"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading && (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3" aria-hidden="true">
@@ -282,7 +311,7 @@ export default function LibraryPage() {
           <h2 className="mb-3 text-card-title">📁 {activeGroup.label}</h2>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
             {activeGroup.items.map((item) => (
-              <MediaCard key={item.id} item={item} onChanged={load} />
+              <MediaCard key={item.id} item={item} onChanged={load} showOwner={Boolean(query.userId)} />
             ))}
           </div>
         </>
@@ -294,7 +323,7 @@ export default function LibraryPage() {
             <FolderCard key={group.key} group={group} onOpen={() => setOpenFolder(group.key)} />
           ))}
           {standalone.map((item) => (
-            <MediaCard key={item.id} item={item} onChanged={load} />
+            <MediaCard key={item.id} item={item} onChanged={load} showOwner={Boolean(query.userId)} />
           ))}
         </div>
       )}

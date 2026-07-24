@@ -46,6 +46,7 @@ class LibraryItemOut(BaseModel):
     sourceId: Optional[str] = None
     jobId: Optional[str] = None
     playlistTitle: Optional[str] = None
+    ownerName: Optional[str] = None
     publishedAt: Optional[datetime] = None
     createdAt: datetime
     expiresAt: Optional[datetime] = None

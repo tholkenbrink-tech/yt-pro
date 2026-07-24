@@ -1,4 +1,5 @@
 import { getCsrfToken } from "./csrf";
+import { clearCachedUserId, setCachedUserId } from "./currentUser";
 import type { RawAnalyzeResponse } from "./analyzeTransform";
 import type {
   CookieStatus,
@@ -86,11 +87,19 @@ export const api = {
     request<SessionUser>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
+    }).then((session) => {
+      setCachedUserId(session.id);
+      return session;
     }),
 
-  logout: () => request<void>("/api/auth/logout", { method: "POST" }),
+  logout: () =>
+    request<void>("/api/auth/logout", { method: "POST" }).finally(() => clearCachedUserId()),
 
-  session: () => request<SessionUser>("/api/auth/session"),
+  session: () =>
+    request<SessionUser>("/api/auth/session").then((session) => {
+      setCachedUserId(session.id);
+      return session;
+    }),
 
   analyze: (input: { url?: string; urls?: string[] }) =>
     request<RawAnalyzeResponse>("/api/analyze", {
@@ -142,11 +151,12 @@ export const api = {
   zipDownloadUrl: (itemId: string) =>
     `${API_BASE_URL}/api/items/${itemId}/zip/download`,
 
-  history: (params: { query?: string; status?: string; sort?: string } = {}) => {
+  history: (params: { query?: string; status?: string; sort?: string; userId?: string } = {}) => {
     const qs = new URLSearchParams();
     if (params.query) qs.set("query", params.query);
     if (params.status) qs.set("status", params.status);
     if (params.sort) qs.set("sort", params.sort);
+    if (params.userId) qs.set("userId", params.userId);
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
     return request<Job["items"]>(`/api/history${suffix}`);
   },
@@ -205,9 +215,14 @@ export const api = {
     if (params.quality) qs.set("quality", params.quality);
     if (params.sort) qs.set("sort", params.sort);
     if (params.query) qs.set("query", params.query);
+    if (params.userId) qs.set("userId", params.userId);
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
     return request<LibraryItem[]>(`/api/library${suffix}`);
   },
+
+  // ---- Family accounts (hard-coded users, shared NAS library) ----
+
+  listUsers: () => request<SessionUser[]>("/api/users"),
 
   // ---- Phase 2: automatic sources ----
 
