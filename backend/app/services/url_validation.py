@@ -8,6 +8,13 @@ ALLOWED_HOSTS = {
     "m.youtube.com",
     "music.youtube.com",
     "youtu.be",
+    # German public broadcasters (ÖRR) - ardmediathek.de covers ARD's
+    # regional broadcasters too (BR, NDR, WDR, MDR, SWR, RBB, HR, SR all
+    # publish under this one domain rather than their own).
+    "ardmediathek.de",
+    "www.ardmediathek.de",
+    "zdf.de",
+    "www.zdf.de",
 }
 
 
@@ -15,7 +22,7 @@ class InvalidUrlError(ValueError):
     pass
 
 
-def validate_youtube_url(url: str) -> str:
+def validate_media_url(url: str) -> str:
     """Validates via urlparse's hostname, never regex on the raw string
     (regex-on-string is spoofable by e.g. 'evil.com/youtube.com')."""
     try:

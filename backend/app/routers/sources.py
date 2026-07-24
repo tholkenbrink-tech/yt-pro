@@ -25,7 +25,7 @@ from app.schemas.sources import (
 )
 from app.services import source_service, ytdlp_runner
 from app.services.job_service import DuplicateJobError, create_job
-from app.services.url_validation import validate_youtube_url
+from app.services.url_validation import validate_media_url
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
 
@@ -75,7 +75,7 @@ def _resolve_download_profile(db: DBSession, download_profile_id: str) -> Downlo
 async def analyze_source(
     body: AnalyzeSourceRequest, db: DBSession = Depends(get_db), user: User = Depends(get_current_user)
 ):
-    validated = validate_youtube_url(body.url)
+    validated = validate_media_url(body.url)
     data = await ytdlp_runner.dump_json(validated, flat_playlist=True)
     entries = list(data.get("entries") or [])
     return AnalyzeSourceResponse(
@@ -99,7 +99,7 @@ def list_sources(db: DBSession = Depends(get_db), user: User = Depends(get_curre
 async def create_source(
     body: MonitoredSourceCreate, db: DBSession = Depends(get_db), user: User = Depends(get_current_user)
 ):
-    validated = validate_youtube_url(body.sourceUrl)
+    validated = validate_media_url(body.sourceUrl)
     profile = _resolve_download_profile(db, body.downloadProfileId)
 
     data = await ytdlp_runner.dump_json(validated, flat_playlist=True)

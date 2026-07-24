@@ -13,7 +13,7 @@ from app.models.download_profile import DownloadProfile
 from app.models.status import Status
 from app.schemas.analyze import AnalyzedItem, AnalyzeResponse, QualityOption
 from app.services import ytdlp_runner
-from app.services.url_validation import validate_youtube_url
+from app.services.url_validation import validate_media_url
 
 
 class PlaylistTooLargeError(ValueError):
@@ -90,7 +90,7 @@ def _to_analyzed_item(entry: dict[str, Any]) -> AnalyzedItem:
 
 
 async def analyze_url(url: str, db: DBSession) -> AnalyzeResponse:
-    validated = validate_youtube_url(url)
+    validated = validate_media_url(url)
     qualities = get_available_qualities(db)
 
     # --flat-playlist keeps a playlist's enumeration fast (no per-video full
@@ -149,7 +149,7 @@ async def analyze_multi(urls: list[str], db: DBSession) -> AnalyzeResponse:
     # pasted links took up to N * ANALYZE_TIMEOUT_SECONDS in the worst case,
     # which regularly exceeded the frontend/tunnel's patience and surfaced
     # as a generic network error rather than a clean timeout response.
-    validated_urls = [validate_youtube_url(u) for u in urls]
+    validated_urls = [validate_media_url(u) for u in urls]
     results = await asyncio.gather(*(ytdlp_runner.dump_json(u) for u in validated_urls))
     items = [_to_analyzed_item(d) for d in results]
     already_downloaded = _find_already_downloaded(db, [i.youtubeId for i in items])

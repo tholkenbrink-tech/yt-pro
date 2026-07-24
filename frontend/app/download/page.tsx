@@ -85,7 +85,7 @@ export default function DownloadPage() {
       if (e instanceof ApiError && e.status === 400) {
         // Backend's InvalidUrlError/PlaylistTooLargeError both surface as
         // 400 - this is the "link not supported" case from the design brief.
-        setError("Dieser Link wird nicht unterstützt. Bitte füge einen gültigen YouTube-Link ein.");
+        setError("Dieser Link wird nicht unterstützt. Bitte füge einen gültigen YouTube-, ARD- oder ZDF-Link ein.");
       } else if (e instanceof ApiError) {
         // yt-dlp itself failed to analyze the URL (502) - the video is most
         // likely gone, private, or region-locked rather than a client bug.
@@ -120,7 +120,7 @@ export default function DownloadPage() {
             }
           }}
           rows={4}
-          placeholder={"https://youtube.com/watch?v=...\n(mehrere Links = je eine Zeile, Umschalt+Enter für neue Zeile)"}
+          placeholder={"https://youtube.com/watch?v=... oder ARD/ZDF Mediathek-Link\n(mehrere Links = je eine Zeile, Umschalt+Enter für neue Zeile)"}
           className="w-full rounded-md border border-border bg-surface p-3 text-base text-text-primary"
         />
       </div>
