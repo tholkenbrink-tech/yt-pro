@@ -47,7 +47,10 @@ async def dump_json(url: str, flat_playlist: bool = False, cookies_path: Optiona
 def run_download(args: list[str], on_progress_line=None) -> int:
     """Runs yt-dlp for an actual download, streaming stdout line-by-line to
     on_progress_line. Sync (used from the RQ worker process). Never shell=True,
-    always an explicit argument list built server-side."""
+    always an explicit argument list built server-side. Callers that need the
+    real extracted metadata (e.g. the true per-video thumbnail, which
+    --flat-playlist listings don't carry) should pass --write-info-json and
+    read the resulting <outtmpl>.info.json file themselves."""
     proc = subprocess.Popen(
         args,
         stdout=subprocess.PIPE,

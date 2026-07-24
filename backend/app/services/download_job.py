@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -17,6 +18,7 @@ from app.models.download_item import DownloadItem
 from app.models.download_job import DownloadJob
 from app.models.download_profile import DownloadProfile
 from app.models.monitored_source import MonitoredSource
+from app.models.monitored_source_item import MonitoredSourceItem
 from app.models.status import IN_PROGRESS_STATUSES, Status
 from app.services import ytdlp_runner
 from app.services.format_selector import build_format_selector
@@ -193,6 +195,7 @@ def _process_item(db, job: DownloadJob, item: DownloadItem, profile: DownloadPro
             "--newline",
             "-f", selector,
             "--merge-output-format", profile.preferredContainer if not profile.audioOnly else "m4a",
+            "--write-info-json",
             "-o", part_template,
             source_url,
         ]
@@ -207,6 +210,15 @@ def _process_item(db, job: DownloadJob, item: DownloadItem, profile: DownloadPro
         returncode = ytdlp_runner.run_download(args, on_progress_line=handler)
         if returncode != 0:
             raise RuntimeError(f"yt-dlp exited with code {returncode}")
+
+        real_thumbnail = _consume_info_json_thumbnail(out_dir, item.id)
+        if real_thumbnail:
+            item.thumbnailPath = real_thumbnail
+            linked_source_item = db.execute(
+                select(MonitoredSourceItem).where(MonitoredSourceItem.downloadItemId == item.id)
+            ).scalar_one_or_none()
+            if linked_source_item:
+                linked_source_item.thumbnailUrl = real_thumbnail
 
         produced = _find_produced_file(out_dir, item.id)
         if not produced:
@@ -269,9 +281,35 @@ def _finalize_media_path(out_dir: str, current_path: str, desired_name: str, ite
 
 def _find_produced_file(out_dir: str, item_id: str) -> Optional[str]:
     for name in os.listdir(out_dir):
-        if name.startswith(item_id) and not name.endswith(".part"):
+        if name.startswith(item_id) and not name.endswith((".part", ".info.json")):
             return os.path.join(out_dir, name)
     return None
+
+
+def _consume_info_json_thumbnail(out_dir: str, item_id: str) -> Optional[str]:
+    """Reads the real per-video thumbnail out of the --write-info-json sidecar
+    yt-dlp just produced (the actual extraction has full metadata, unlike the
+    --flat-playlist listing used for source discovery, which mostly doesn't
+    carry a thumbnail at all). Removes the sidecar file either way, since it's
+    not meant to sit in the finished-media output directory."""
+    info_path = os.path.join(out_dir, f"{item_id}.info.json")
+    if not os.path.exists(info_path):
+        return None
+    try:
+        with open(info_path, "r", encoding="utf-8") as f:
+            info = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        info = {}
+    finally:
+        try:
+            os.remove(info_path)
+        except OSError:
+            pass
+
+    thumbnail = info.get("thumbnail")
+    if not thumbnail and info.get("thumbnails"):
+        thumbnail = info["thumbnails"][-1].get("url")
+    return thumbnail
 
 
 def _cleanup_partial_files(out_dir: str, item_id: str) -> None:
