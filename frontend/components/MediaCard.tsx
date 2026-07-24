@@ -19,6 +19,12 @@ import {
   isDownloadedToDevice,
   markDownloadedToDevice,
 } from "@/lib/deviceDownloadStore";
+import {
+  setDownloadProgress,
+  startTracking,
+  stopTracking,
+  useInAppDownloadProgress,
+} from "@/lib/activeDownloadsStore";
 import { shouldDownloadToDevice } from "@/lib/wifiGate";
 
 interface Props {
@@ -37,9 +43,9 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
   const [showDeviceInstructions, setShowDeviceInstructions] = useState(false);
   const [offline, setOffline] = useState(false);
   const [deviceDownloaded, setDeviceDownloaded] = useState(false);
-  const [savingOffline, setSavingOffline] = useState(false);
-  const [saveProgressPct, setSaveProgressPct] = useState<number | null>(null);
+  const [removingOffline, setRemovingOffline] = useState(false);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
+  const { saving: savingOffline, pct: saveProgressPct } = useInAppDownloadProgress(item.id);
   const { showToast } = useToast();
   const state = deriveMediaState(item);
   const hasProgress = Boolean(item.progress && !item.progress.completed && item.progress.positionSeconds > 0);
@@ -57,29 +63,27 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
   }, [item.id]);
 
   const startOfflineInApp = async () => {
-    setSavingOffline(true);
-    setSaveProgressPct(0);
+    startTracking(item.id);
     try {
-      await saveOfflineInApp(item, setSaveProgressPct);
+      await saveOfflineInApp(item, (pct) => setDownloadProgress(item.id, pct));
       setOffline(true);
       showToast("Offline in der App gespeichert");
     } catch {
       showToast("Offline-Speicherung fehlgeschlagen - evtl. zu wenig Speicherplatz");
     } finally {
-      setSavingOffline(false);
-      setSaveProgressPct(null);
+      stopTracking(item.id);
     }
   };
 
   const removeOfflineCopy = async () => {
-    setSavingOffline(true);
+    setRemovingOffline(true);
     try {
       await removeOffline(item.id);
       setOffline(false);
       setShowRemoveOfflineConfirm(false);
       showToast("Offline-Kopie entfernt");
     } finally {
-      setSavingOffline(false);
+      setRemovingOffline(false);
     }
   };
 
@@ -195,9 +199,9 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
         <button
           type="button"
           aria-label={offline ? "Offline-Kopie in der App entfernen" : "In der App speichern"}
-          disabled={savingOffline}
+          disabled={savingOffline || removingOffline}
           onClick={handleOfflineButtonClick}
-          className={`flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base disabled:opacity-50 ${
+          className={`relative flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base disabled:opacity-50 ${
             offline ? "border-success bg-success/15 text-success" : "border-border"
           }`}
         >
@@ -206,16 +210,26 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
           ) : (
             "⬇"
           )}
+          {offline && !savingOffline && (
+            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-success text-[10px] leading-none text-white">
+              ✓
+            </span>
+          )}
         </button>
         <button
           type="button"
           aria-label={deviceDownloaded ? "Auf Gerät gespeichert - verwalten" : "Auf Gerät speichern"}
           onClick={handleDeviceButtonClick}
-          className={`flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base ${
+          className={`relative flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base ${
             deviceDownloaded ? "border-success bg-success/15 text-success" : "border-border"
           }`}
         >
           📲
+          {deviceDownloaded && (
+            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-success text-[10px] leading-none text-white">
+              ✓
+            </span>
+          )}
         </button>
       </div>
 
@@ -263,7 +277,7 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
         description="Die Datei wird aus der App entfernt. Falls du sie zusätzlich auf dein Gerät heruntergeladen hast (z. B. in Dateien), bleibt diese davon unberührt und muss dort separat gelöscht werden."
         confirmLabel="Entfernen"
         destructive
-        busy={savingOffline}
+        busy={removingOffline}
         onConfirm={removeOfflineCopy}
         onCancel={() => setShowRemoveOfflineConfirm(false)}
       />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
@@ -27,6 +28,14 @@ export default function LoginPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
+      <Image
+        src="/icons/icon-192.png"
+        alt=""
+        width={64}
+        height={64}
+        className="mx-auto mb-4 h-16 w-16 rounded-2xl"
+        priority
+      />
       <h1 className="mb-6 text-center text-2xl font-bold">yt-pro Anmeldung</h1>
       <form onSubmit={submit} className="space-y-3">
         <div>

@@ -16,6 +16,12 @@ import {
   isDownloadedToDevice,
   markDownloadedToDevice,
 } from "@/lib/deviceDownloadStore";
+import {
+  setDownloadProgress,
+  startTracking,
+  stopTracking,
+  useInAppDownloadProgress,
+} from "@/lib/activeDownloadsStore";
 import { shouldDownloadToDevice } from "@/lib/wifiGate";
 import { useToast } from "@/components/ToastProvider";
 
@@ -48,14 +54,14 @@ export default function VideoPlayerPage() {
   const [renderedFromOfflineCache, setRenderedFromOfflineCache] = useState(false);
   const [busy, setBusy] = useState(false);
   const [hasOfflineCopy, setHasOfflineCopy] = useState(false);
-  const [savingOffline, setSavingOffline] = useState(false);
-  const [saveProgressPct, setSaveProgressPct] = useState<number | null>(null);
+  const [removingOffline, setRemovingOffline] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRemoveOfflineConfirm, setShowRemoveOfflineConfirm] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [showDeviceInstructions, setShowDeviceInstructions] = useState(false);
   const [deviceDownloaded, setDeviceDownloaded] = useState(false);
   const { showToast } = useToast();
+  const { saving: savingOffline, pct: saveProgressPct } = useInAppDownloadProgress(videoId);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,40 +139,28 @@ export default function VideoPlayerPage() {
     );
   }
 
-  const resetProgress = async () => {
-    setBusy(true);
-    try {
-      await api.resetProgress(item.id);
-      router.refresh();
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const removeOfflineCopy = async () => {
-    setSavingOffline(true);
+    setRemovingOffline(true);
     try {
       await removeOffline(item.id);
       setHasOfflineCopy(false);
       setShowRemoveOfflineConfirm(false);
       showToast("Offline-Kopie entfernt");
     } finally {
-      setSavingOffline(false);
+      setRemovingOffline(false);
     }
   };
 
   const startOfflineInApp = async () => {
-    setSavingOffline(true);
-    setSaveProgressPct(0);
+    startTracking(item.id);
     try {
-      await saveOfflineInApp(item, setSaveProgressPct);
+      await saveOfflineInApp(item, (pct) => setDownloadProgress(item.id, pct));
       setHasOfflineCopy(true);
       showToast("Offline in der App gespeichert");
     } catch {
       showToast("Offline-Speicherung fehlgeschlagen - evtl. zu wenig Speicherplatz");
     } finally {
-      setSavingOffline(false);
-      setSaveProgressPct(null);
+      stopTracking(item.id);
     }
   };
 
@@ -255,19 +249,10 @@ export default function VideoPlayerPage() {
       <div className="mt-4 flex items-center gap-2">
         <button
           type="button"
-          aria-label="Von vorne starten"
-          disabled={busy}
-          onClick={resetProgress}
-          className="flex min-h-10 min-w-10 items-center justify-center rounded-md border border-border text-base disabled:opacity-50"
-        >
-          ↺
-        </button>
-        <button
-          type="button"
           aria-label={hasOfflineCopy ? "Offline-Kopie in der App entfernen" : "In der App speichern"}
-          disabled={savingOffline}
+          disabled={savingOffline || removingOffline}
           onClick={handleOfflineButtonClick}
-          className={`flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base disabled:opacity-50 ${
+          className={`relative flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base disabled:opacity-50 ${
             hasOfflineCopy ? "border-success bg-success/15 text-success" : "border-border"
           }`}
         >
@@ -276,21 +261,31 @@ export default function VideoPlayerPage() {
           ) : (
             "⬇"
           )}
+          {hasOfflineCopy && !savingOffline && (
+            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-success text-[10px] leading-none text-white">
+              ✓
+            </span>
+          )}
         </button>
         <button
           type="button"
           aria-label={deviceDownloaded ? "Auf Gerät gespeichert - verwalten" : "Auf Gerät speichern"}
           onClick={handleDeviceButtonClick}
-          className={`flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base ${
+          className={`relative flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base ${
             deviceDownloaded ? "border-success bg-success/15 text-success" : "border-border"
           }`}
         >
           📲
+          {deviceDownloaded && (
+            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-success text-[10px] leading-none text-white">
+              ✓
+            </span>
+          )}
         </button>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {item.originalUrl && (
+      {item.originalUrl && (
+        <div className="mt-2">
           <a
             href={item.originalUrl}
             target="_blank"
@@ -299,12 +294,15 @@ export default function VideoPlayerPage() {
           >
             Original öffnen
           </a>
-        )}
+        </div>
+      )}
+
+      <div className="mt-8 flex justify-center">
         <button
           type="button"
           disabled={busy}
           onClick={() => setShowDeleteConfirm(true)}
-          className="rounded-md border border-error/40 px-2.5 py-1.5 text-xs font-medium text-error disabled:opacity-50"
+          className="rounded-md border border-error/40 px-4 py-2 text-xs font-medium text-error disabled:opacity-50"
         >
           Von NAS löschen
         </button>
@@ -327,7 +325,7 @@ export default function VideoPlayerPage() {
         description="Die Datei wird aus der App entfernt. Falls du sie zusätzlich auf dein Gerät heruntergeladen hast (z. B. in Dateien), bleibt diese davon unberührt und muss dort separat gelöscht werden."
         confirmLabel="Entfernen"
         destructive
-        busy={savingOffline}
+        busy={removingOffline}
         onConfirm={removeOfflineCopy}
         onCancel={() => setShowRemoveOfflineConfirm(false)}
       />

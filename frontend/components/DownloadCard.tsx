@@ -16,6 +16,12 @@ import {
   isDownloadedToDevice,
   markDownloadedToDevice,
 } from "@/lib/deviceDownloadStore";
+import {
+  setDownloadProgress,
+  startTracking,
+  stopTracking,
+  useInAppDownloadProgress,
+} from "@/lib/activeDownloadsStore";
 import { shouldDownloadToDevice } from "@/lib/wifiGate";
 
 interface Props {
@@ -31,9 +37,9 @@ export function DownloadCard({ item, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
   const [offline, setOffline] = useState(false);
   const [deviceDownloaded, setDeviceDownloaded] = useState(false);
-  const [savingOffline, setSavingOffline] = useState(false);
-  const [saveProgressPct, setSaveProgressPct] = useState<number | null>(null);
+  const [removingOffline, setRemovingOffline] = useState(false);
   const { showToast } = useToast();
+  const { saving: savingOffline, pct: saveProgressPct } = useInAppDownloadProgress(item.id);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,20 +53,19 @@ export function DownloadCard({ item, onChanged }: Props) {
   }, [item.id]);
 
   const removeOfflineCopy = async () => {
-    setSavingOffline(true);
+    setRemovingOffline(true);
     try {
       await removeOffline(item.id);
       setOffline(false);
       setShowRemoveOfflineConfirm(false);
       showToast("Heruntergeladene Kopie entfernt");
     } finally {
-      setSavingOffline(false);
+      setRemovingOffline(false);
     }
   };
 
   const startOfflineInApp = async () => {
-    setSavingOffline(true);
-    setSaveProgressPct(0);
+    startTracking(item.id);
     try {
       await saveOfflineInApp(
         {
@@ -72,15 +77,14 @@ export function DownloadCard({ item, onChanged }: Props) {
           fileSize: item.finalFileSize,
           thumbnailPath: item.thumbnail,
         },
-        setSaveProgressPct
+        (pct) => setDownloadProgress(item.id, pct)
       );
       setOffline(true);
       showToast("Offline in der App gespeichert");
     } catch {
       showToast("Speichern fehlgeschlagen - evtl. zu wenig Speicherplatz");
     } finally {
-      setSavingOffline(false);
-      setSaveProgressPct(null);
+      stopTracking(item.id);
     }
   };
 
@@ -184,7 +188,7 @@ export function DownloadCard({ item, onChanged }: Props) {
       <div className="mt-3 flex gap-2">
         <button
           type="button"
-          disabled={savingOffline}
+          disabled={savingOffline || removingOffline}
           onClick={handleOfflineButtonClick}
           className={`flex-1 rounded-lg px-4 py-3 text-center text-sm font-medium active:opacity-80 disabled:opacity-50 ${
             offline
@@ -192,13 +196,15 @@ export function DownloadCard({ item, onChanged }: Props) {
               : "bg-brand text-white dark:bg-brand-dark dark:text-gray-950"
           }`}
         >
-          {savingOffline
-            ? saveProgressPct !== null
-              ? `${saveProgressPct}%`
-              : "Wird entfernt..."
-            : offline
-              ? "In der App - entfernen"
-              : "In der App speichern"}
+          {removingOffline
+            ? "Wird entfernt..."
+            : savingOffline
+              ? saveProgressPct !== null
+                ? `${saveProgressPct}%`
+                : "…"
+              : offline
+                ? "In der App - entfernen"
+                : "In der App speichern"}
         </button>
         <button
           type="button"
@@ -264,7 +270,7 @@ export function DownloadCard({ item, onChanged }: Props) {
         description="Die Datei wird aus der App entfernt. Falls du sie zusätzlich auf dein Gerät heruntergeladen hast (z. B. in Dateien), bleibt diese davon unberührt und muss dort separat gelöscht werden."
         confirmLabel="Entfernen"
         destructive
-        busy={savingOffline}
+        busy={removingOffline}
         onConfirm={removeOfflineCopy}
         onCancel={() => setShowRemoveOfflineConfirm(false)}
       />

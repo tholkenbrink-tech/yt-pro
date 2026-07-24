@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { attemptOpenFilesApp } from "@/lib/deviceDownloadStore";
+import { ConfirmationDialog } from "./ConfirmationDialog";
 
 const STEPS = [
   "Öffne die Dateien-App auf deinem iPhone (oder tippe unten auf \"Dateien-App öffnen\").",
@@ -20,6 +22,8 @@ interface Props {
  * manual instructions, and clear its own bookkeeping entry (onForget) -
  * never the actual file. */
 export function DeviceFileInstructions({ onForget, onClose }: Props) {
+  const [showForgetConfirm, setShowForgetConfirm] = useState(false);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center"
@@ -49,7 +53,7 @@ export function DeviceFileInstructions({ onForget, onClose }: Props) {
         </button>
         <button
           type="button"
-          onClick={onForget}
+          onClick={() => setShowForgetConfirm(true)}
           className="mt-2 w-full rounded-lg px-4 py-3 text-sm font-medium text-error active:opacity-80"
         >
           Aus dieser Liste entfernen (löscht die Datei nicht)
@@ -62,6 +66,16 @@ export function DeviceFileInstructions({ onForget, onClose }: Props) {
           Schließen
         </button>
       </div>
+
+      <ConfirmationDialog
+        open={showForgetConfirm}
+        title="Download aus der Liste entfernen?"
+        description='Bist du sicher? Die Markierung "Auf Gerät gespeichert" wird entfernt - die Datei selbst bleibt unangetastet und muss ggf. separat in der Dateien-App gelöscht werden.'
+        confirmLabel="Entfernen"
+        destructive
+        onConfirm={onForget}
+        onCancel={() => setShowForgetConfirm(false)}
+      />
     </div>
   );
 }
