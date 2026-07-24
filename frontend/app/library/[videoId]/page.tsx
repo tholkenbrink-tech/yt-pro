@@ -51,8 +51,11 @@ export default function VideoPlayerPage() {
     let cancelled = false;
     // No single-item detail endpoint exists in the Phase 2 API contract, so
     // metadata comes from the same /api/library listing the Mediathek uses.
+    // userId=all: this page can be reached for any family member's item (the
+    // shared Mediathek links here), not just the current user's own - the
+    // default library scope would otherwise 404 someone else's video.
     api
-      .library()
+      .library({ userId: "all" })
       .then((items) => {
         if (cancelled) return;
         const found = items.find((i) => i.id === videoId) ?? null;
