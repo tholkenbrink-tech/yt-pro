@@ -6,6 +6,7 @@ import type { JobItem } from "@/lib/types";
 import { StatusPill } from "@/components/StatusPill";
 import { formatDate } from "@/lib/format";
 import { useUsers } from "@/lib/useUsers";
+import { getCachedUserId } from "@/lib/currentUser";
 
 function displayName(name: string) {
   return name.charAt(0).toUpperCase() + name.slice(1);
@@ -23,7 +24,8 @@ export default function HistoryPage() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [sort, setSort] = useState("date_desc");
-  const [userId, setUserId] = useState<string | undefined>(undefined);
+  const selfId = getCachedUserId() ?? undefined;
+  const [userId, setUserId] = useState<string | undefined>(selfId);
   const users = useUsers();
   const [items, setItems] = useState<JobItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,8 +109,7 @@ export default function HistoryPage() {
       {users.length > 1 && (
         <div className="mb-3 flex flex-wrap gap-2">
           {[
-            { value: undefined, label: "Nur ich" },
-            ...users.map((u) => ({ value: u.id, label: displayName(u.name) })),
+            ...users.map((u) => ({ value: u.id as string | undefined, label: displayName(u.name) })),
             { value: "all", label: "Alle" },
           ].map((f) => (
             <button
@@ -142,7 +143,9 @@ export default function HistoryPage() {
             </div>
             <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
               {formatDate(item.createdAt)}
-              {userId && item.ownerName ? ` · 👤 ${item.ownerName}` : ""}
+              {(userId === "all" || (userId && userId !== selfId)) && item.ownerName
+                ? ` · 👤 ${item.ownerName}`
+                : ""}
             </p>
             <div className="mt-2 flex gap-2">
               <button

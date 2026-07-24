@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
 from app.core.config import settings
@@ -23,7 +23,11 @@ COOKIE_KWARGS = dict(httponly=True, secure=True, samesite="none", path="/")
 @router.post("/login")
 @limiter.limit("5/minute")
 def login(request: Request, response: Response, body: LoginRequest, db: DBSession = Depends(get_db)):
-    user = db.execute(select(User).where(User.name == body.username)).scalar_one_or_none()
+    # Case-insensitive: family members naturally type their name capitalized
+    # ("Indie", "Tamara") even though the seeded account name is lowercase.
+    user = db.execute(
+        select(User).where(func.lower(User.name) == body.username.strip().lower())
+    ).scalar_one_or_none()
     if not user or not verify_password(body.password, user.passwordHash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 

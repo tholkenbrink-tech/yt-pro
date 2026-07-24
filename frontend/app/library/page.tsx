@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/Skeleton";
 import { SortSheet } from "@/components/SortSheet";
 import { listOfflineMeta } from "@/lib/offlineStore";
 import { useUsers } from "@/lib/useUsers";
+import { getCachedUserId } from "@/lib/currentUser";
 
 function displayName(name: string) {
   return name.charAt(0).toUpperCase() + name.slice(1);
@@ -105,7 +106,11 @@ function FolderCard({ group, onOpen }: { group: FolderGroup; onOpen: () => void 
 }
 
 export default function LibraryPage() {
-  const [query, setQuery] = useState<LibraryQuery>({ sort: "date_desc" });
+  const selfId = getCachedUserId() ?? undefined;
+  const [query, setQuery] = useState<LibraryQuery>({
+    sort: "date_desc",
+    userId: selfId,
+  });
   const users = useUsers();
   const [search, setSearch] = useState("");
   const [items, setItems] = useState<LibraryItem[]>([]);
@@ -247,8 +252,7 @@ export default function LibraryPage() {
       {users.length > 1 && (
         <div className="mb-4 flex flex-wrap gap-2">
           {[
-            { value: undefined, label: "Nur ich" },
-            ...users.map((u) => ({ value: u.id, label: displayName(u.name) })),
+            ...users.map((u) => ({ value: u.id as string | undefined, label: displayName(u.name) })),
             { value: "all", label: "Alle" },
           ].map((f) => (
             <button
@@ -311,7 +315,7 @@ export default function LibraryPage() {
           <h2 className="mb-3 text-card-title">📁 {activeGroup.label}</h2>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
             {activeGroup.items.map((item) => (
-              <MediaCard key={item.id} item={item} onChanged={load} showOwner={Boolean(query.userId)} />
+              <MediaCard key={item.id} item={item} onChanged={load} showOwner={query.userId === "all" || (Boolean(query.userId) && query.userId !== selfId)} />
             ))}
           </div>
         </>
@@ -323,7 +327,7 @@ export default function LibraryPage() {
             <FolderCard key={group.key} group={group} onOpen={() => setOpenFolder(group.key)} />
           ))}
           {standalone.map((item) => (
-            <MediaCard key={item.id} item={item} onChanged={load} showOwner={Boolean(query.userId)} />
+            <MediaCard key={item.id} item={item} onChanged={load} showOwner={query.userId === "all" || (Boolean(query.userId) && query.userId !== selfId)} />
           ))}
         </div>
       )}
