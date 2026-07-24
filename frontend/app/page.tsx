@@ -10,7 +10,7 @@ export default function RootPage() {
   useEffect(() => {
     api
       .session()
-      .then(() => router.replace("/download"))
+      .then(() => router.replace("/library"))
       .catch(() => router.replace("/login"));
   }, [router]);
 

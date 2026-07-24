@@ -6,9 +6,9 @@ import { usePathname } from "next/navigation";
 import { ActivityIcon, DownloadIcon, LibraryIcon, SettingsIcon } from "./navIcons";
 
 const NAV_ITEMS = [
+  { href: "/library", label: "Mediathek", Icon: LibraryIcon },
   { href: "/download", label: "Download", Icon: DownloadIcon },
   { href: "/activity", label: "Aktivität", Icon: ActivityIcon },
-  { href: "/library", label: "Mediathek", Icon: LibraryIcon },
   { href: "/settings", label: "Einstellungen", Icon: SettingsIcon },
 ];
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import type { LibraryItem, LibraryQuery } from "@/lib/types";
 import { MediaCard } from "@/components/MediaCard";
@@ -294,12 +295,18 @@ export default function LibraryPage() {
           Keine Verbindung zum Server - es werden nur offline gespeicherte Videos angezeigt.
         </p>
       )}
-      {!loading && items.length === 0 && !error && (
-        <div>
+      {!loading && items.length === 0 && !error && !offlineOnly && (
+        <div className="rounded-md border border-border bg-surface p-6 text-center">
           <p className="text-sm font-medium text-text-primary">Noch keine Videos vorbereitet</p>
           <p className="mt-1 text-sm text-text-muted">
             Fertige Videos werden hier angezeigt und können auf dein iPhone geladen werden.
           </p>
+          <Link
+            href="/download"
+            className="mt-4 inline-flex min-h-11 items-center justify-center rounded-md bg-brand px-4 py-3 font-medium text-white dark:bg-brand-dark dark:text-gray-950"
+          >
+            Jetzt YouTube-Video herunterladen
+          </Link>
         </div>
       )}
 
