@@ -121,16 +121,6 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
     }
   };
 
-  const run = async (fn: () => Promise<unknown>) => {
-    setBusy(true);
-    try {
-      await fn();
-      onChanged?.();
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const deleteFromServer = async () => {
     setBusy(true);
     try {
@@ -145,7 +135,7 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
 
   return (
     <div className="rounded-md border border-border bg-surface p-3">
-      <div className="flex items-start gap-3">
+      <Link href={`/library/${item.id}`} className="flex items-start gap-3">
         {item.thumbnailPath && !thumbnailFailed ? (
           <Image
             src={item.thumbnailPath}
@@ -183,7 +173,7 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
             )}
           </div>
         </div>
-      </div>
+      </Link>
 
       {hasProgress && (
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-progress-track">
@@ -204,15 +194,6 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
         </Link>
         <button
           type="button"
-          aria-label="Von vorne starten"
-          disabled={busy}
-          onClick={() => run(() => api.resetProgress(item.id))}
-          className="flex min-h-10 min-w-10 items-center justify-center rounded-md border border-border text-base disabled:opacity-50"
-        >
-          ↺
-        </button>
-        <button
-          type="button"
           aria-label={offline ? "Offline-Kopie in der App entfernen" : "In der App speichern"}
           disabled={savingOffline}
           onClick={handleOfflineButtonClick}
@@ -223,7 +204,7 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
           {savingOffline ? (
             <span className="text-xs font-medium">{saveProgressPct !== null ? `${saveProgressPct}%` : "…"}</span>
           ) : (
-            "📲"
+            "⬇"
           )}
         </button>
         <button
@@ -234,7 +215,7 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
             deviceDownloaded ? "border-success bg-success/15 text-success" : "border-border"
           }`}
         >
-          💾
+          📲
         </button>
       </div>
 

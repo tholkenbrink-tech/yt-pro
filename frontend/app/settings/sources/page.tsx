@@ -27,12 +27,13 @@ export default function SourcesPage() {
   return (
     <main className="mx-auto max-w-2xl px-4 pb-4 pt-6">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-page-title">Automatische Quellen</h1>
+        <h1 className="text-page-title">Playlists</h1>
         <Link
           href="/settings/sources/new"
-          className="min-h-11 rounded-md bg-accent px-3 py-2 text-sm font-medium text-white"
+          aria-label="Neue Quelle"
+          className="flex min-h-11 min-w-11 items-center justify-center rounded-md bg-accent px-3 py-2 text-sm font-medium text-white"
         >
-          Neue Quelle
+          +
         </Link>
       </div>
 

@@ -274,7 +274,7 @@ export default function VideoPlayerPage() {
           {savingOffline ? (
             <span className="text-xs font-medium">{saveProgressPct !== null ? `${saveProgressPct}%` : "…"}</span>
           ) : (
-            "📲"
+            "⬇"
           )}
         </button>
         <button
@@ -285,7 +285,7 @@ export default function VideoPlayerPage() {
             deviceDownloaded ? "border-success bg-success/15 text-success" : "border-border"
           }`}
         >
-          💾
+          📲
         </button>
       </div>
 

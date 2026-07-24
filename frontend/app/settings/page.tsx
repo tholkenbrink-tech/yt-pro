@@ -9,12 +9,10 @@ export default function SettingsPage() {
 
       <ul className="mb-6 space-y-2">
         {[
-          { href: "/settings/download", label: "Download" },
+          { href: "/settings/sources", label: "Playlists" },
+          { href: "/settings/download", label: "Download Einstellung" },
           { href: "/settings/player", label: "Player" },
-          { href: "/settings/sources", label: "Automatische Quellen" },
           { href: "/settings/storage", label: "Speicher" },
-          { href: "/settings/design", label: "Design" },
-          { href: "/settings/youtube", label: "YouTube-Zugang" },
           { href: "/settings/account", label: "Konto" },
         ].map((item) => (
           <li key={item.href}>
@@ -28,16 +26,6 @@ export default function SettingsPage() {
           </li>
         ))}
       </ul>
-
-      <section>
-        <h2 className="mb-2 text-section-title">Erweitert</h2>
-        <p className="text-meta text-text-muted">
-          Worker/Scheduler-Status: nicht verfügbar (kein Backend-Endpunkt).
-        </p>
-        <p className="text-meta text-text-muted">
-          yt-dlp/ffmpeg-Version: nicht verfügbar (kein Backend-Endpunkt).
-        </p>
-      </section>
     </main>
   );
 }

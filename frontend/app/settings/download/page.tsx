@@ -29,7 +29,7 @@ export default function DownloadSettingsPage() {
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-4 pt-6">
-      <h1 className="mb-4 text-page-title">Download</h1>
+      <h1 className="mb-4 text-page-title">Download Einstellung</h1>
 
       <label htmlFor="default-quality" className="mb-1 block text-sm font-medium">
         Standardqualität
