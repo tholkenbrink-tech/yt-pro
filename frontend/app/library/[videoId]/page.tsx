@@ -9,6 +9,7 @@ import { SourceBadge } from "@/components/SourceBadge";
 import { formatBytes, formatDate, formatDuration } from "@/lib/format";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { getOfflineMeta, isOffline, removeOffline, saveOffline } from "@/lib/offlineStore";
+import { shouldDownloadToDevice } from "@/lib/wifiGate";
 import { useToast } from "@/components/ToastProvider";
 
 function fromOfflineMeta(meta: Awaited<ReturnType<typeof getOfflineMeta>>): LibraryItem | null {
@@ -137,12 +138,17 @@ export default function VideoPlayerPage() {
       }
       return;
     }
+    const toDevice = shouldDownloadToDevice();
     setSavingOffline(true);
     setSaveProgressPct(0);
     try {
-      await saveOffline(item, setSaveProgressPct);
+      await saveOffline(item, setSaveProgressPct, toDevice);
       setHasOfflineCopy(true);
-      showToast("Heruntergeladen - offline in der App und auf dem Gerät verfügbar");
+      showToast(
+        toDevice
+          ? "Heruntergeladen - offline in der App und auf dem Gerät verfügbar"
+          : "Offline in der App gespeichert - Geräte-Download übersprungen (nicht im WLAN)"
+      );
     } catch {
       showToast("Offline-Speicherung fehlgeschlagen - evtl. zu wenig Speicherplatz");
     } finally {

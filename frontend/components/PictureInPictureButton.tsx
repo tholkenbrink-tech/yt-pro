@@ -13,23 +13,27 @@ interface Props {
 }
 
 /**
- * Feature-detects standard PiP (`document.pictureInPictureEnabled`) first,
- * falls back to the older iOS Safari presentation-mode API
- * (`webkitSupportsPresentationMode`/`webkitSetPresentationMode`), and
- * renders nothing if neither is available - never show a button that
- * doesn't work. SSR-safe: defaults to false, only checks in an effect.
+ * Feature-detects the older iOS Safari presentation-mode API
+ * (`webkitSupportsPresentationMode`/`webkitSetPresentationMode`) FIRST,
+ * falling back to the standard PiP API (`document.pictureInPictureEnabled`)
+ * only when it isn't available - not the other way around. Safari reports
+ * `document.pictureInPictureEnabled === true` even when the standard
+ * `requestPictureInPicture()` call silently fails, which it reliably does
+ * in standalone (home-screen) PWA mode specifically - the webkit API is the
+ * one that's actually always worked there. Renders nothing if neither is
+ * available. SSR-safe: defaults to null, only checks in an effect.
  */
 export function PictureInPictureButton({ videoRef }: Props) {
   const [mode, setMode] = useState<"standard" | "webkit" | null>(null);
 
   useEffect(() => {
-    if (typeof document !== "undefined" && document.pictureInPictureEnabled) {
-      setMode("standard");
-      return;
-    }
     const video = videoRef.current as LegacyPresentationVideo | null;
     if (video?.webkitSupportsPresentationMode?.("picture-in-picture")) {
       setMode("webkit");
+      return;
+    }
+    if (typeof document !== "undefined" && document.pictureInPictureEnabled) {
+      setMode("standard");
     }
   }, [videoRef]);
 
@@ -38,7 +42,12 @@ export function PictureInPictureButton({ videoRef }: Props) {
   const toggle = async () => {
     const video = videoRef.current as LegacyPresentationVideo | null;
     if (!video) return;
-    if (mode === "standard") {
+    if (mode === "webkit") {
+      const current = video.webkitPresentationMode;
+      video.webkitSetPresentationMode?.(
+        current === "picture-in-picture" ? "inline" : "picture-in-picture"
+      );
+    } else {
       try {
         if (document.pictureInPictureElement) {
           await document.exitPictureInPicture();
@@ -48,11 +57,6 @@ export function PictureInPictureButton({ videoRef }: Props) {
       } catch {
         /* PiP request rejected (e.g. user gesture requirement) - ignore */
       }
-    } else if (mode === "webkit") {
-      const current = video.webkitPresentationMode;
-      video.webkitSetPresentationMode?.(
-        current === "picture-in-picture" ? "inline" : "picture-in-picture"
-      );
     }
   };
 

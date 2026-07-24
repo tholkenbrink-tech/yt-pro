@@ -12,7 +12,7 @@ export default function AccountSettingsPage() {
   useEffect(() => {
     api
       .session()
-      .then((s) => setUsername(s.user.username))
+      .then((s) => setUsername(s.name))
       .catch(() => setUsername(null));
   }, []);
 

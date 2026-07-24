@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import type { Job } from "@/lib/types";
-import { isActiveStatus } from "@/lib/statusLabels";
+import { isActiveStatus, jobDisplayName } from "@/lib/statusLabels";
 import { StatusPill } from "./StatusPill";
 
 const POLL_INTERVAL_MS = 3000;
@@ -60,7 +60,7 @@ export function ActiveJobsList() {
               className="block rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-800"
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate pr-2">{job.title || job.sourceUrl}</span>
+                <span className="truncate pr-2">{jobDisplayName(job)}</span>
                 <StatusPill status={job.status} />
               </div>
               <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">

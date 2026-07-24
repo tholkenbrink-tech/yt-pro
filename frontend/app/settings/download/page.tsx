@@ -67,6 +67,22 @@ export default function DownloadSettingsPage() {
         />
       </label>
 
+      <label className="mb-1 flex min-h-11 items-center justify-between">
+        <span className="text-sm font-medium">Nur im WLAN auf Gerät laden</span>
+        <input
+          type="checkbox"
+          checked={settings.wifiOnlyDeviceDownload}
+          onChange={(e) => update({ wifiOnlyDeviceDownload: e.target.checked })}
+          className="h-5 w-5 accent-accent"
+        />
+      </label>
+      <p className="mb-4 text-meta text-text-muted">
+        Gilt nur für den Geräte-Download bei &quot;Herunterladen&quot; (Speichern in
+        Dateien/andere Apps) - die Offline-Kopie in der App selbst ist davon
+        nie betroffen. Safari kann WLAN nicht zuverlässig von Mobilfunk
+        unterscheiden, daher fragt die App in dem Fall einmal nach.
+      </p>
+
       <label htmlFor="parallel-downloads" className="mb-1 block text-sm font-medium">
         Parallele Downloads
       </label>

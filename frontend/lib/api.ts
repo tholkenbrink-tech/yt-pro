@@ -83,7 +83,7 @@ async function request<T>(
 
 export const api = {
   login: (username: string, password: string) =>
-    request<{ user: SessionUser["user"] }>("/api/auth/login", {
+    request<SessionUser>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
     }),

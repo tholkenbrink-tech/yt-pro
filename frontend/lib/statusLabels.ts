@@ -1,4 +1,11 @@
-import type { JobStatus } from "./types";
+import type { Job, JobStatus } from "./types";
+
+/** job.title is only set for playlist jobs (the playlist's own name) - a
+ * single-video job's title lives on its one item instead, and the raw
+ * source URL is the last-resort fallback if neither is available. */
+export function jobDisplayName(job: Job): string {
+  return job.title || job.items[0]?.title || job.sourceUrl;
+}
 
 /** German display labels for each backend job/item status. */
 export const STATUS_LABELS: Record<JobStatus, string> = {

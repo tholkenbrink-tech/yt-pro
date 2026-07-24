@@ -11,6 +11,10 @@ export interface DownloadSettings {
   rememberLastSelection: boolean;
   playlistSelectAllByDefault: boolean;
   parallelDownloads: number;
+  /** Only gates the on-device download half of "Herunterladen" (saving to
+   * Files/other apps) - never blocks the in-app offline copy, which never
+   * leaves the app's own storage. See lib/wifiGate.ts. */
+  wifiOnlyDeviceDownload: boolean;
 }
 
 export const DEFAULT_DOWNLOAD_SETTINGS: DownloadSettings = {
@@ -18,6 +22,7 @@ export const DEFAULT_DOWNLOAD_SETTINGS: DownloadSettings = {
   rememberLastSelection: true,
   playlistSelectAllByDefault: true,
   parallelDownloads: 1,
+  wifiOnlyDeviceDownload: false,
 };
 
 export interface SourceDefaults {

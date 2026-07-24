@@ -12,6 +12,7 @@ import { ConfirmationDialog } from "./ConfirmationDialog";
 import { useToast } from "./ToastProvider";
 import { formatBytes, formatDate, formatDuration } from "@/lib/format";
 import { isOffline, removeOffline, saveOffline } from "@/lib/offlineStore";
+import { shouldDownloadToDevice } from "@/lib/wifiGate";
 
 interface Props {
   item: LibraryItem;
@@ -51,12 +52,17 @@ export function MediaCard({ item, onChanged }: Props) {
       }
       return;
     }
+    const toDevice = shouldDownloadToDevice();
     setSavingOffline(true);
     setSaveProgressPct(0);
     try {
-      await saveOffline(item, setSaveProgressPct);
+      await saveOffline(item, setSaveProgressPct, toDevice);
       setOffline(true);
-      showToast("Heruntergeladen - offline in der App und auf dem Gerät verfügbar");
+      showToast(
+        toDevice
+          ? "Heruntergeladen - offline in der App und auf dem Gerät verfügbar"
+          : "Offline in der App gespeichert - Geräte-Download übersprungen (nicht im WLAN)"
+      );
     } catch {
       showToast("Offline-Speicherung fehlgeschlagen - evtl. zu wenig Speicherplatz");
     } finally {

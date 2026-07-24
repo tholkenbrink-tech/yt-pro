@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import type { Job } from "@/lib/types";
-import { isActiveStatus } from "@/lib/statusLabels";
+import { isActiveStatus, jobDisplayName } from "@/lib/statusLabels";
 import { StatusPill } from "@/components/StatusPill";
 import { Skeleton } from "@/components/Skeleton";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
@@ -82,7 +82,7 @@ export default function ActivityPage() {
                   href={`/activity/${job.jobId}`}
                   className="flex min-h-11 items-center justify-between gap-2 rounded-md border border-border p-3 text-sm"
                 >
-                  <span className="truncate pr-2">{job.sourceUrl}</span>
+                  <span className="truncate pr-2">{jobDisplayName(job)}</span>
                   <StatusPill status={job.status} />
                 </Link>
               </li>
@@ -103,7 +103,7 @@ export default function ActivityPage() {
                   href={`/activity/${job.jobId}`}
                   className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-md border border-border p-3 text-sm"
                 >
-                  <span className="truncate pr-2">{job.sourceUrl}</span>
+                  <span className="truncate pr-2">{jobDisplayName(job)}</span>
                   <StatusPill status={job.status} />
                 </Link>
                 <button

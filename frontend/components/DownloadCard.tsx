@@ -10,6 +10,7 @@ import { IOSSaveInstructions } from "./IOSSaveInstructions";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { useToast } from "./ToastProvider";
 import { isOffline, removeOffline, saveOffline } from "@/lib/offlineStore";
+import { shouldDownloadToDevice } from "@/lib/wifiGate";
 
 const SEEN_INSTRUCTIONS_KEY = "yt-pro:ios-instructions-seen";
 
@@ -57,7 +58,8 @@ export function DownloadCard({ item, onChanged }: Props) {
       }
       return;
     }
-    handleFirstTap();
+    const toDevice = shouldDownloadToDevice();
+    if (toDevice) handleFirstTap();
     setSavingOffline(true);
     setSaveProgressPct(0);
     try {
@@ -71,10 +73,15 @@ export function DownloadCard({ item, onChanged }: Props) {
           fileSize: item.finalFileSize,
           thumbnailPath: item.thumbnail,
         },
-        setSaveProgressPct
+        setSaveProgressPct,
+        toDevice
       );
       setOffline(true);
-      showToast("Heruntergeladen - offline in der App und auf dem Gerät verfügbar");
+      showToast(
+        toDevice
+          ? "Heruntergeladen - offline in der App und auf dem Gerät verfügbar"
+          : "Offline in der App gespeichert - Geräte-Download übersprungen (nicht im WLAN)"
+      );
     } catch {
       showToast("Herunterladen fehlgeschlagen - evtl. zu wenig Speicherplatz");
     } finally {

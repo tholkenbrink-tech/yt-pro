@@ -97,11 +97,12 @@ export interface StorageInfo {
   retentionHours: number | null;
 }
 
+// Matches backend/app/schemas/auth.py UserOut exactly - both
+// GET /api/auth/session and POST /api/auth/login return this flat shape
+// directly, not nested under a "user" key.
 export interface SessionUser {
-  user: {
-    username: string;
-    [key: string]: unknown;
-  };
+  id: string;
+  name: string;
 }
 
 // ---- Phase 2 ----
