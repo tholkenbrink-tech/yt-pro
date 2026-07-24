@@ -5,6 +5,7 @@ import Image from "next/image";
 import { api, ApiError } from "@/lib/api";
 import type { MonitoredSource } from "@/lib/types";
 import { getDownloadSettings } from "@/lib/localSettings";
+import { getLastSubmittedLink } from "@/lib/analysisStore";
 import { useToast } from "@/components/ToastProvider";
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
 export function QuickAccessBar({ onPick }: Props) {
   const [sources, setSources] = useState<MonitoredSource[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [lastLink, setLastLink] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [url, setUrl] = useState("");
   const [saving, setSaving] = useState(false);
@@ -30,7 +32,10 @@ export function QuickAccessBar({ onPick }: Props) {
       .finally(() => setLoaded(true));
   };
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+    setLastLink(getLastSubmittedLink());
+  }, []);
 
   const cancelAdd = () => {
     setAdding(false);
@@ -72,7 +77,8 @@ export function QuickAccessBar({ onPick }: Props) {
     }
   };
 
-  const remove = async (id: string) => {
+  const remove = async (id: string, name: string) => {
+    if (!window.confirm(`"${name}" aus dem Schnellzugriff entfernen?`)) return;
     setSources((prev) => prev.filter((s) => s.id !== id));
     await api.deleteSource(id);
   };
@@ -81,10 +87,34 @@ export function QuickAccessBar({ onPick }: Props) {
   // no default entries.
   if (!loaded) return null;
 
+  const addButton = !adding && (
+    <button
+      type="button"
+      onClick={() => setAdding(true)}
+      aria-label="Playlist als Schnellzugriff merken"
+      className="flex shrink-0 items-center justify-center self-stretch rounded-md border border-dashed border-border px-3 text-lg font-medium leading-none text-text-secondary"
+    >
+      +
+    </button>
+  );
+
+  const restoreButton = lastLink && (
+    <button
+      type="button"
+      onClick={() => onPick(lastLink)}
+      aria-label="Letzten Link erneut einfügen"
+      title={lastLink}
+      className="flex shrink-0 items-center justify-center self-stretch rounded-md border border-border bg-surface px-3 text-base text-text-secondary"
+    >
+      ↺
+    </button>
+  );
+
   return (
     <div className="mx-4 mb-3">
-      {sources.length > 0 && (
+      {sources.length > 0 || lastLink ? (
         <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
+          {restoreButton}
           {sources.map((source) => (
             <div
               key={source.id}
@@ -109,7 +139,7 @@ export function QuickAccessBar({ onPick }: Props) {
               </button>
               <button
                 type="button"
-                onClick={() => remove(source.id)}
+                onClick={() => remove(source.id, source.name)}
                 aria-label={`${source.name} entfernen`}
                 className="min-h-6 min-w-6 shrink-0 rounded text-text-muted hover:text-text-primary"
               >
@@ -117,17 +147,18 @@ export function QuickAccessBar({ onPick }: Props) {
               </button>
             </div>
           ))}
+          {addButton}
         </div>
-      )}
-
-      {!adding && (
-        <button
-          type="button"
-          onClick={() => setAdding(true)}
-          className="min-h-9 rounded-md border border-dashed border-border px-3 py-1.5 text-sm font-medium text-text-secondary"
-        >
-          + Playlist als Schnellzugriff merken
-        </button>
+      ) : (
+        !adding && (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="min-h-9 rounded-md border border-dashed border-border px-3 py-1.5 text-sm font-medium text-text-secondary"
+          >
+            + Playlist als Schnellzugriff merken
+          </button>
+        )
       )}
 
       {adding && (

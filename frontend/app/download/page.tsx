@@ -9,6 +9,7 @@ import {
   getDraftText,
   setDraftText,
   clearDraftText,
+  setLastSubmittedLink,
 } from "@/lib/analysisStore";
 import { getDownloadSettings } from "@/lib/localSettings";
 import { toAnalysisResult } from "@/lib/analyzeTransform";
@@ -72,6 +73,7 @@ export default function DownloadPage() {
       setError("Bitte mindestens einen Link einfügen.");
       return;
     }
+    setLastSubmittedLink(text);
     setLoading(true);
     setError(null);
     try {
@@ -142,6 +144,8 @@ export default function DownloadPage() {
           {loading ? "Analysiere..." : "Analysieren"}
         </button>
       </div>
+
+      <hr className="mx-4 mb-3 border-border" />
 
       {/* Alternative way to fill the box above - pick a saved link instead
           of pasting one, so it sits right next to "Link einfügen". */}

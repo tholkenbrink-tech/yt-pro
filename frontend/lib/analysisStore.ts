@@ -69,3 +69,17 @@ export function getLastQuality(): string | null {
 export function setLastQuality(quality: string) {
   localStorage.setItem(QUALITY_KEY, quality);
 }
+
+const LAST_SUBMITTED_LINK_KEY = "yt-pro:last-submitted-link";
+
+/** Whatever was in the URL box the last time "Analysieren" was pressed
+ * (verbatim, incl. multi-line pastes) - lets a "restore last link" button
+ * bring it back after the box gets cleared on a successful analysis.
+ * Durable across sessions (localStorage), unlike the transient draft text. */
+export function getLastSubmittedLink(): string | null {
+  return localStorage.getItem(LAST_SUBMITTED_LINK_KEY);
+}
+
+export function setLastSubmittedLink(text: string) {
+  localStorage.setItem(LAST_SUBMITTED_LINK_KEY, text);
+}
