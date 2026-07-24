@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { formatDuration } from "@/lib/format";
-import { type BackgroundPlaybackMode, getPlayerSettings } from "@/lib/playerSettings";
+import { type BackgroundPlaybackMode, getPlayerSettings, setPlayerSettings } from "@/lib/playerSettings";
 import { getOfflineBlob } from "@/lib/offlineStore";
-import { BackgroundPlaybackToggle } from "./BackgroundPlaybackToggle";
+import { BackgroundAudioButton } from "./BackgroundAudioButton";
 import { PictureInPictureButton } from "./PictureInPictureButton";
 import { ResumePlaybackPrompt } from "./ResumePlaybackPrompt";
 
@@ -18,21 +18,52 @@ interface Props {
   itemId: string;
   title?: string;
   channelName?: string;
+  thumbnail?: string;
+  autoPlay?: boolean;
 }
 
-export function VideoPlayer({ itemId, title, channelName }: Props) {
+export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const shadowAudioRef = useRef<HTMLAudioElement>(null);
+  const isShadowActiveRef = useRef(false);
+  const isPrimedRef = useRef(false);
   const lastSavedAtRef = useRef(0);
   const markedWatchedRef = useRef(false);
   const settingsRef = useRef(getPlayerSettings());
   const [resumePosition, setResumePosition] = useState<number | null>(null);
-  const [showResumeToast, setShowResumeToast] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [src, setSrc] = useState<string>(() => api.streamUrl(itemId));
   const [isOfflineSource, setIsOfflineSource] = useState(false);
   const [backgroundPlaybackMode, setBackgroundPlaybackMode] = useState<BackgroundPlaybackMode>(
     () => settingsRef.current.backgroundPlaybackMode
   );
+  const backgroundPlaybackModeRef = useRef(backgroundPlaybackMode);
+  useEffect(() => {
+    backgroundPlaybackModeRef.current = backgroundPlaybackMode;
+  }, [backgroundPlaybackMode]);
+
+  const selectBackgroundPlaybackMode = (mode: BackgroundPlaybackMode) => {
+    setBackgroundPlaybackMode(mode);
+    setPlayerSettings({ backgroundPlaybackMode: mode });
+
+    if (mode === "audio") {
+      // Mutually exclusive: picking "audio" while actually floating in a
+      // real PiP window right now snaps back to inline immediately, rather
+      // than leaving a stale PiP window open alongside the "audio" choice
+      // being shown as active.
+      const video = videoRef.current as
+        | (HTMLVideoElement & {
+            webkitPresentationMode?: string;
+            webkitSetPresentationMode?: (mode: string) => void;
+          })
+        | null;
+      if (video?.webkitPresentationMode === "picture-in-picture") {
+        video.webkitSetPresentationMode?.("inline");
+      } else if (document.pictureInPictureElement === video) {
+        document.exitPictureInPicture().catch(() => undefined);
+      }
+    }
+  };
 
   const saveProgress = (fireAndForget = false) => {
     const video = videoRef.current;
@@ -97,17 +128,22 @@ export function VideoPlayer({ itemId, title, channelName }: Props) {
 
   useEffect(() => {
     const video = videoRef.current;
+    const shadowAudio = shadowAudioRef.current;
     if (!video) return;
 
     const onLoadedMetadata = () => {
-      // Seek immediately + show a dismissible toast, rather than a blocking
-      // "resume?" prompt before playback: it's simpler UX (no extra tap
-      // before the user can hit play) and matches the "keep it simple"
-      // instruction for this app - the toast still gives an explicit
-      // "Von vorne" undo if the auto-seek guessed wrong.
+      // Seek immediately rather than a blocking "resume?" prompt before
+      // playback: it's simpler UX (no extra tap before the user can hit
+      // play) - the icon-only resume button still gives an explicit
+      // "von vorne" undo if the auto-seek guessed wrong.
       if (resumePosition !== null) {
         video.currentTime = resumePosition;
-        setShowResumeToast(true);
+      }
+      // Coming from the library's own play button already expresses the
+      // user's intent to watch now, so start playback immediately instead
+      // of requiring a second tap on the native control.
+      if (autoPlay) {
+        video.play().catch(() => undefined);
       }
     };
 
@@ -132,14 +168,74 @@ export function VideoPlayer({ itemId, title, channelName }: Props) {
     const onEnterPip = () => saveProgress();
     const onError = () => setError("network");
 
+    // Browsers only allow `.play()` without a fresh user gesture on an
+    // element that has previously been "activated" by one. The shadow audio
+    // element has never been played by the user directly, so calling
+    // `.play()` on it later from the (gesture-less) visibilitychange handler
+    // below would otherwise be silently rejected - which is exactly what
+    // made background audio stop and require manually pressing play again.
+    // Priming it here, muted, inside the video's own "play" event (itself
+    // triggered by the user's tap) borrows that same gesture to unlock it.
+    const onVideoPlay = () => {
+      if (!shadowAudio || isPrimedRef.current) return;
+      isPrimedRef.current = true;
+      shadowAudio.muted = true;
+      shadowAudio
+        .play()
+        .then(() => {
+          shadowAudio.pause();
+          shadowAudio.currentTime = 0;
+          shadowAudio.muted = false;
+        })
+        .catch(() => {
+          isPrimedRef.current = false;
+        });
+    };
+
+    // iOS WebKit suspends a <video> element's audio the moment the app is
+    // backgrounded unless it's in Picture-in-Picture - there is no way for a
+    // *video* element to keep playing audio-only in the background there.
+    // The standard workaround (also how web-based music/podcast players
+    // survive backgrounding on iOS) is to hand playback off to a hidden
+    // <audio> element instead, which iOS *does* keep alive in the
+    // background once Media Session is registered - then hand it back when
+    // the app is foregrounded again. Harmless no-op on platforms that don't
+    // need it (desktop browsers already keep the video itself playing).
+    const handOffToShadowAudio = () => {
+      if (backgroundPlaybackModeRef.current !== "audio") return;
+      if (!shadowAudio || video.paused || isShadowActiveRef.current) return;
+      isShadowActiveRef.current = true;
+      shadowAudio.currentTime = video.currentTime;
+      shadowAudio.playbackRate = video.playbackRate;
+      video.pause();
+      shadowAudio.play().catch(() => {
+        isShadowActiveRef.current = false;
+      });
+    };
+
+    const handBackFromShadowAudio = () => {
+      if (!shadowAudio || !isShadowActiveRef.current) return;
+      isShadowActiveRef.current = false;
+      const wasPlaying = !shadowAudio.paused;
+      video.currentTime = shadowAudio.currentTime;
+      shadowAudio.pause();
+      if (wasPlaying) video.play().catch(() => undefined);
+    };
+
     const onVisibilityChange = () => {
-      if (document.hidden) saveProgress();
+      if (document.hidden) {
+        saveProgress();
+        handOffToShadowAudio();
+      } else {
+        handBackFromShadowAudio();
+      }
     };
     const onPageHide = () => saveProgress();
 
     video.addEventListener("loadedmetadata", onLoadedMetadata);
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("pause", onPause);
+    video.addEventListener("play", onVideoPlay);
     video.addEventListener("enterpictureinpicture", onEnterPip);
     video.addEventListener("error", onError);
     document.addEventListener("visibilitychange", onVisibilityChange);
@@ -149,10 +245,15 @@ export function VideoPlayer({ itemId, title, channelName }: Props) {
       video.removeEventListener("loadedmetadata", onLoadedMetadata);
       video.removeEventListener("timeupdate", onTimeUpdate);
       video.removeEventListener("pause", onPause);
+      video.removeEventListener("play", onVideoPlay);
       video.removeEventListener("enterpictureinpicture", onEnterPip);
       video.removeEventListener("error", onError);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pagehide", onPageHide);
+      if (isShadowActiveRef.current) {
+        isShadowActiveRef.current = false;
+        shadowAudio?.pause();
+      }
       // Best-effort save on unmount - fire-and-forget, never await in
       // cleanup.
       saveProgress(true);
@@ -183,43 +284,56 @@ export function VideoPlayer({ itemId, title, channelName }: Props) {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: title || "Video",
       artist: channelName || "",
+      artwork: thumbnail ? [{ src: thumbnail }] : undefined,
     });
 
-    navigator.mediaSession.setActionHandler("play", () => video.play());
-    navigator.mediaSession.setActionHandler("pause", () => video.pause());
+    // Routes to whichever element is actually playing right now - the
+    // visible video normally, or the hidden shadow <audio> element while
+    // it's standing in for background playback (see the visibilitychange
+    // handling above).
+    const activePlayer = () => (isShadowActiveRef.current ? shadowAudioRef.current : video) ?? video;
+
+    navigator.mediaSession.setActionHandler("play", () => activePlayer().play());
+    navigator.mediaSession.setActionHandler("pause", () => activePlayer().pause());
     navigator.mediaSession.setActionHandler("seekbackward", (details) => {
-      video.currentTime = Math.max(0, video.currentTime - (details.seekOffset || 10));
+      const player = activePlayer();
+      player.currentTime = Math.max(0, player.currentTime - (details.seekOffset || 10));
     });
     navigator.mediaSession.setActionHandler("seekforward", (details) => {
-      video.currentTime = Math.min(
-        video.duration || Infinity,
-        video.currentTime + (details.seekOffset || 10)
+      const player = activePlayer();
+      player.currentTime = Math.min(
+        player.duration || Infinity,
+        player.currentTime + (details.seekOffset || 10)
       );
     });
     navigator.mediaSession.setActionHandler("seekto", (details) => {
-      if (details.seekTime !== undefined) video.currentTime = details.seekTime;
+      if (details.seekTime !== undefined) activePlayer().currentTime = details.seekTime;
     });
 
     const updatePlaybackState = () => {
-      navigator.mediaSession.playbackState = video.paused ? "paused" : "playing";
+      navigator.mediaSession.playbackState = activePlayer().paused ? "paused" : "playing";
     };
+    const audio = shadowAudioRef.current;
     video.addEventListener("play", updatePlaybackState);
     video.addEventListener("pause", updatePlaybackState);
+    audio?.addEventListener("play", updatePlaybackState);
+    audio?.addEventListener("pause", updatePlaybackState);
     updatePlaybackState();
 
     return () => {
       video.removeEventListener("play", updatePlaybackState);
       video.removeEventListener("pause", updatePlaybackState);
+      audio?.removeEventListener("play", updatePlaybackState);
+      audio?.removeEventListener("pause", updatePlaybackState);
       navigator.mediaSession.setActionHandler("play", null);
       navigator.mediaSession.setActionHandler("pause", null);
       navigator.mediaSession.setActionHandler("seekbackward", null);
       navigator.mediaSession.setActionHandler("seekforward", null);
       navigator.mediaSession.setActionHandler("seekto", null);
     };
-  }, [itemId, title, channelName]);
+  }, [itemId, title, channelName, thumbnail]);
 
   const restartFromBeginning = async () => {
-    setShowResumeToast(false);
     setResumePosition(null);
     try {
       await api.resetProgress(itemId);
@@ -242,11 +356,17 @@ export function VideoPlayer({ itemId, title, channelName }: Props) {
         Dein Browser unterstützt die Videowiedergabe nicht.
       </video>
 
-      {showResumeToast && resumePosition !== null && (
+      {/* Hidden stand-in for the audio track while backgrounded on
+          platforms (iOS Safari) that suspend a <video> element's audio the
+          moment the app leaves the foreground - see handOffToShadowAudio
+          above. preload="none" so it never competes for bandwidth during
+          normal (foreground) playback. */}
+      <audio ref={shadowAudioRef} src={src} preload="none" className="hidden" />
+
+      {resumePosition !== null && (
         <ResumePlaybackPrompt
           positionLabel={formatDuration(resumePosition)}
           onRestart={restartFromBeginning}
-          onDismiss={() => setShowResumeToast(false)}
         />
       )}
 
@@ -268,8 +388,18 @@ export function VideoPlayer({ itemId, title, channelName }: Props) {
       )}
 
       <div className="mt-2 flex items-center justify-end gap-2">
-        <BackgroundPlaybackToggle mode={backgroundPlaybackMode} onChange={setBackgroundPlaybackMode} />
-        {settingsRef.current.showPipButton && <PictureInPictureButton videoRef={videoRef} />}
+        <BackgroundAudioButton
+          active={backgroundPlaybackMode === "audio"}
+          onActivate={() => selectBackgroundPlaybackMode("audio")}
+        />
+        {settingsRef.current.showPipButton && (
+          <PictureInPictureButton
+            videoRef={videoRef}
+            active={backgroundPlaybackMode === "pip"}
+            onActivate={() => selectBackgroundPlaybackMode("pip")}
+            onDeactivate={() => selectBackgroundPlaybackMode("audio")}
+          />
+        )}
       </div>
     </div>
   );
