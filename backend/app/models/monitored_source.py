@@ -52,6 +52,10 @@ class MonitoredSource(Base, TimestampMixin):
     retentionPolicy: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     notificationsEnabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # A manually-triggered playlist bookmark shown on the download page,
+    # rather than a scheduled automation source shown under Settings >
+    # Sources. Always paired with mode=discover_only, scheduleType=manual.
+    isQuickAccess: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Atomic compare-and-set lock flag so a manual check-now and the scheduler
     # tick can never process the same source concurrently (SQLite has no row locks).
     checking: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

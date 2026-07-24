@@ -29,6 +29,7 @@ class AnalyzedItem(BaseModel):
     thumbnail: Optional[str] = None
     duration: Optional[int] = None
     uploadDate: Optional[str] = None
+    alreadyDownloaded: bool = False
 
 
 class AnalyzeResponse(BaseModel):

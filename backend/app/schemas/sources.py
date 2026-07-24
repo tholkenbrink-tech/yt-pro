@@ -34,6 +34,7 @@ class MonitoredSourceCreate(BaseModel):
     onlyPublishedAfter: Optional[datetime] = None
     retentionPolicy: Optional[str] = None
     notificationsEnabled: bool = False
+    isQuickAccess: bool = False
 
 
 class MonitoredSourceUpdate(BaseModel):
@@ -52,6 +53,7 @@ class MonitoredSourceUpdate(BaseModel):
     retentionPolicy: Optional[str] = None
     notificationsEnabled: Optional[bool] = None
     enabled: Optional[bool] = None
+    isQuickAccess: Optional[bool] = None
 
 
 class MonitoredSourceOut(BaseModel):
@@ -77,6 +79,7 @@ class MonitoredSourceOut(BaseModel):
     retentionPolicy: Optional[str] = None
     notificationsEnabled: bool
     enabled: bool
+    isQuickAccess: bool = False
     lastCheckedAt: Optional[datetime] = None
     lastSuccessfulCheckAt: Optional[datetime] = None
     nextCheckAt: Optional[datetime] = None

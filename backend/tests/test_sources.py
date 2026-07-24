@@ -80,6 +80,27 @@ def test_create_source(auth_client, db_session, test_user, monkeypatch):
     assert body["computedStatus"] == "active"
 
 
+def test_create_quick_access_source(auth_client, db_session, monkeypatch):
+    monkeypatch.setattr(ytdlp_runner, "dump_json", _make_async(_playlist_payload()))
+    resp = auth_client.post(
+        "/api/sources",
+        json={
+            "sourceUrl": "https://youtube.com/playlist?list=PL123",
+            "name": "Später ansehen",
+            "downloadProfileId": _profile_id(db_session),
+            "mode": "discover_only",
+            "scheduleType": "manual",
+            "isQuickAccess": True,
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["isQuickAccess"] is True
+
+    listed = auth_client.get("/api/sources").json()
+    assert next(s["isQuickAccess"] for s in listed if s["id"] == body["id"]) is True
+
+
 def test_analyze_as_source(auth_client, db_session, monkeypatch):
     monkeypatch.setattr(ytdlp_runner, "dump_json", _make_async(_playlist_payload(n=5)))
     resp = auth_client.post("/api/sources/analyze", json={"url": "https://youtube.com/playlist?list=PL123"})

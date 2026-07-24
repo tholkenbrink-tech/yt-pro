@@ -125,6 +125,7 @@ async def create_source(
         onlyPublishedAfter=body.onlyPublishedAfter,
         retentionPolicy=body.retentionPolicy,
         notificationsEnabled=body.notificationsEnabled,
+        isQuickAccess=body.isQuickAccess,
     )
     source.nextCheckAt = source_service.compute_next_check(source.scheduleType, source.cronExpression, datetime.utcnow())
     db.add(source)
