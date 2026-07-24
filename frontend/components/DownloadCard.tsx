@@ -7,9 +7,15 @@ import { api } from "@/lib/api";
 import { formatBytes, formatCountdown, formatDuration } from "@/lib/format";
 import { conversionNoteLabel } from "@/lib/statusLabels";
 import { IOSSaveInstructions, SEEN_INSTRUCTIONS_KEY } from "./IOSSaveInstructions";
+import { DeviceFileInstructions } from "./DeviceFileInstructions";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { useToast } from "./ToastProvider";
-import { isOffline, removeOffline, saveOffline } from "@/lib/offlineStore";
+import { isOffline, removeOffline, saveOfflineInApp, triggerDeviceDownload } from "@/lib/offlineStore";
+import {
+  forgetDownloadedToDevice,
+  isDownloadedToDevice,
+  markDownloadedToDevice,
+} from "@/lib/deviceDownloadStore";
 import { shouldDownloadToDevice } from "@/lib/wifiGate";
 
 interface Props {
@@ -19,10 +25,12 @@ interface Props {
 
 export function DownloadCard({ item, onChanged }: Props) {
   const [showInstructions, setShowInstructions] = useState(false);
+  const [showDeviceInstructions, setShowDeviceInstructions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRemoveOfflineConfirm, setShowRemoveOfflineConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [deviceDownloaded, setDeviceDownloaded] = useState(false);
   const [savingOffline, setSavingOffline] = useState(false);
   const [saveProgressPct, setSaveProgressPct] = useState<number | null>(null);
   const { showToast } = useToast();
@@ -32,18 +40,11 @@ export function DownloadCard({ item, onChanged }: Props) {
     isOffline(item.id).then((value) => {
       if (!cancelled) setOffline(value);
     });
+    setDeviceDownloaded(isDownloadedToDevice(item.id));
     return () => {
       cancelled = true;
     };
   }, [item.id]);
-
-  const handleFirstTap = () => {
-    if (typeof window === "undefined") return;
-    if (localStorage.getItem(SEEN_INSTRUCTIONS_KEY) !== "1") {
-      setShowInstructions(true);
-      localStorage.setItem(SEEN_INSTRUCTIONS_KEY, "1");
-    }
-  };
 
   const removeOfflineCopy = async () => {
     setSavingOffline(true);
@@ -57,13 +58,11 @@ export function DownloadCard({ item, onChanged }: Props) {
     }
   };
 
-  const startOffline = async () => {
-    const toDevice = shouldDownloadToDevice();
-    if (toDevice) handleFirstTap();
+  const startOfflineInApp = async () => {
     setSavingOffline(true);
     setSaveProgressPct(0);
     try {
-      await saveOffline(
+      await saveOfflineInApp(
         {
           id: item.id,
           title: item.title,
@@ -73,17 +72,12 @@ export function DownloadCard({ item, onChanged }: Props) {
           fileSize: item.finalFileSize,
           thumbnailPath: item.thumbnail,
         },
-        setSaveProgressPct,
-        toDevice
+        setSaveProgressPct
       );
       setOffline(true);
-      showToast(
-        toDevice
-          ? "Heruntergeladen - offline in der App und auf dem Gerät verfügbar"
-          : "Offline in der App gespeichert - Geräte-Download übersprungen (nicht im WLAN)"
-      );
+      showToast("Offline in der App gespeichert");
     } catch {
-      showToast("Herunterladen fehlgeschlagen - evtl. zu wenig Speicherplatz");
+      showToast("Speichern fehlgeschlagen - evtl. zu wenig Speicherplatz");
     } finally {
       setSavingOffline(false);
       setSaveProgressPct(null);
@@ -94,7 +88,37 @@ export function DownloadCard({ item, onChanged }: Props) {
     if (offline) {
       setShowRemoveOfflineConfirm(true);
     } else {
-      startOffline();
+      startOfflineInApp();
+    }
+  };
+
+  const saveToDevice = () => {
+    if (!shouldDownloadToDevice()) {
+      showToast("Geräte-Download übersprungen (nicht im WLAN)");
+      return;
+    }
+    if (typeof window !== "undefined" && localStorage.getItem(SEEN_INSTRUCTIONS_KEY) !== "1") {
+      setShowInstructions(true);
+      localStorage.setItem(SEEN_INSTRUCTIONS_KEY, "1");
+    }
+    triggerDeviceDownload(item.id);
+    markDownloadedToDevice(item.id);
+    setDeviceDownloaded(true);
+    showToast("Download gestartet - läuft weiter, auch wenn du die App verlässt");
+  };
+
+  const forgetDevice = () => {
+    forgetDownloadedToDevice(item.id);
+    setDeviceDownloaded(false);
+    setShowDeviceInstructions(false);
+    showToast("Aus der Geräte-Liste entfernt");
+  };
+
+  const handleDeviceButtonClick = () => {
+    if (deviceDownloaded) {
+      setShowDeviceInstructions(true);
+    } else {
+      saveToDevice();
     }
   };
 
@@ -157,24 +181,37 @@ export function DownloadCard({ item, onChanged }: Props) {
         </p>
       )}
 
-      <button
-        type="button"
-        disabled={savingOffline}
-        onClick={handleOfflineButtonClick}
-        className={`mt-3 block w-full rounded-lg px-4 py-3 text-center font-medium active:opacity-80 disabled:opacity-50 ${
-          offline
-            ? "border border-success bg-success/15 text-success"
-            : "bg-brand text-white dark:bg-brand-dark dark:text-gray-950"
-        }`}
-      >
-        {savingOffline
-          ? saveProgressPct !== null
-            ? `Wird heruntergeladen... ${saveProgressPct}%`
-            : "Wird entfernt..."
-          : offline
-            ? "Heruntergeladen - Kopie entfernen"
-            : "Herunterladen"}
-      </button>
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          disabled={savingOffline}
+          onClick={handleOfflineButtonClick}
+          className={`flex-1 rounded-lg px-4 py-3 text-center text-sm font-medium active:opacity-80 disabled:opacity-50 ${
+            offline
+              ? "border border-success bg-success/15 text-success"
+              : "bg-brand text-white dark:bg-brand-dark dark:text-gray-950"
+          }`}
+        >
+          {savingOffline
+            ? saveProgressPct !== null
+              ? `${saveProgressPct}%`
+              : "Wird entfernt..."
+            : offline
+              ? "In der App - entfernen"
+              : "In der App speichern"}
+        </button>
+        <button
+          type="button"
+          onClick={handleDeviceButtonClick}
+          className={`flex-1 rounded-lg px-4 py-3 text-center text-sm font-medium active:opacity-80 ${
+            deviceDownloaded
+              ? "border border-success bg-success/15 text-success"
+              : "border border-gray-300 dark:border-gray-700"
+          }`}
+        >
+          {deviceDownloaded ? "Auf Gerät - verwalten" : "Auf Gerät speichern"}
+        </button>
+      </div>
       <button
         type="button"
         onClick={() => setShowInstructions(true)}
@@ -204,6 +241,10 @@ export function DownloadCard({ item, onChanged }: Props) {
 
       {showInstructions && (
         <IOSSaveInstructions onClose={() => setShowInstructions(false)} />
+      )}
+
+      {showDeviceInstructions && (
+        <DeviceFileInstructions onForget={forgetDevice} onClose={() => setShowDeviceInstructions(false)} />
       )}
 
       <ConfirmationDialog

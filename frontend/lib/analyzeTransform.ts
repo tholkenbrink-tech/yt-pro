@@ -26,6 +26,7 @@ export interface RawAnalyzeResponse {
     thumbnail?: string | null;
     duration?: number | null;
     uploadDate?: string | null;
+    alreadyDownloaded?: boolean;
   }[];
   itemCount: number;
 }
@@ -42,7 +43,10 @@ export function toAnalysisResult(raw: RawAnalyzeResponse): AnalysisResult {
       title: i.title,
       thumbnail: i.thumbnail ?? "",
       duration: i.duration ?? 0,
-      selected: true,
+      // Already-downloaded items start unselected so re-analyzing a
+      // playlist doesn't silently re-queue videos already in the library.
+      selected: !i.alreadyDownloaded,
+      alreadyDownloaded: i.alreadyDownloaded ?? false,
     }));
     return {
       kind: "playlist",
@@ -65,5 +69,6 @@ export function toAnalysisResult(raw: RawAnalyzeResponse): AnalysisResult {
     duration: raw.duration ?? 0,
     uploadDate: raw.uploadDate ?? "",
     availableQualities: qualities,
+    alreadyDownloaded: raw.items[0]?.alreadyDownloaded ?? false,
   };
 }

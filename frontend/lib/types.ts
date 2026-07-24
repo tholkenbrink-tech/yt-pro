@@ -29,6 +29,10 @@ export interface SingleVideoAnalysis {
   uploadDate: string;
   availableQualities: Quality[];
   estimatedSizeByQuality?: Record<string, number>;
+  /** True if this video already exists anywhere in the shared household
+   * library (any non-failed status) - just an informational hint here,
+   * there's no multi-select to gate on this screen. */
+  alreadyDownloaded?: boolean;
 }
 
 export interface PlaylistItemPreview {
@@ -37,6 +41,9 @@ export interface PlaylistItemPreview {
   thumbnail: string;
   duration: number;
   selected: boolean;
+  /** See SingleVideoAnalysis.alreadyDownloaded - used here to grey out the
+   * row and default it to unselected, avoiding accidental re-downloads. */
+  alreadyDownloaded?: boolean;
 }
 
 export interface PlaylistAnalysis {
@@ -202,6 +209,9 @@ export interface MonitoredSource {
   retentionPolicy?: string;
   notificationsEnabled: boolean;
   enabled: boolean;
+  /** A manually-triggered playlist bookmark shown on the download page,
+   * rather than a scheduled automation source under Settings > Sources. */
+  isQuickAccess: boolean;
   lastCheckedAt?: string;
   lastSuccessfulCheckAt?: string;
   nextCheckAt?: string;

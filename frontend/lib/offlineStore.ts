@@ -84,29 +84,30 @@ export async function isAvailable(): Promise<boolean> {
   return typeof indexedDB !== "undefined";
 }
 
-/** Saves offline for in-app playback (IndexedDB) and, unless the caller
- * opts out (e.g. the WLAN-only gate), also hands the file off to the
- * browser's native download manager for an on-device copy. These are two
- * separate transfers on purpose: the native download is OS-level and keeps
- * running even if the tab is backgrounded or the app is switched away from,
- * which a JS-driven fetch never survives on iOS Safari (no Background Fetch
- * API support there). The in-app copy stays best-effort - if the tab is
- * left before this fetch finishes, it simply isn't saved yet and the
- * offline button will offer to save it again next time. */
-export async function saveOffline(
-  item: OfflineSourceItem,
-  onProgress?: (pct: number) => void,
-  triggerDeviceDownload = true
-): Promise<void> {
-  if (triggerDeviceDownload) {
-    const link = document.createElement("a");
-    link.href = api.downloadUrl(item.id);
-    link.rel = "noopener";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  }
+/** Hands the file off to the browser's native download manager for an
+ * on-device copy - a separate, independent transfer from saveOfflineInApp()
+ * on purpose: the native download is OS-level and keeps running even if the
+ * tab is backgrounded or the app is switched away from, which a JS-driven
+ * fetch never survives on iOS Safari (no Background Fetch API support
+ * there). There is no callback for when/whether it actually finishes -
+ * callers that want to remember "this was sent to the device" should use
+ * deviceDownloadStore.markDownloadedToDevice() right after calling this. */
+export function triggerDeviceDownload(itemId: string): void {
+  const link = document.createElement("a");
+  link.href = api.downloadUrl(itemId);
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
 
+/** Saves a video for in-app offline playback (IndexedDB). Independent of
+ * triggerDeviceDownload() - this never leaves the app's own storage, so it
+ * isn't gated by the WLAN-only device-download setting. */
+export async function saveOfflineInApp(
+  item: OfflineSourceItem,
+  onProgress?: (pct: number) => void
+): Promise<void> {
   const res = await fetch(api.streamUrl(item.id), { credentials: "include" });
   if (!res.ok) throw new Error(`Stream fetch failed: ${res.status}`);
   const blob = await readBlobWithProgress(res, onProgress);

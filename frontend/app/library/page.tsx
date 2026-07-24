@@ -9,6 +9,7 @@ import { MediaCard } from "@/components/MediaCard";
 import { Skeleton } from "@/components/Skeleton";
 import { SortSheet } from "@/components/SortSheet";
 import { listOfflineMeta } from "@/lib/offlineStore";
+import { listDownloadedToDeviceIds } from "@/lib/deviceDownloadStore";
 import { useUsers } from "@/lib/useUsers";
 import { getCachedUserId } from "@/lib/currentUser";
 
@@ -20,7 +21,8 @@ const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: "", label: "Alle" },
   { value: "new", label: "Neu" },
   { value: "watched", label: "Angesehen" },
-  { value: "downloaded-to-device", label: "Heruntergeladen" },
+  { value: "saved-in-app", label: "In der App gespeichert" },
+  { value: "saved-on-device", label: "Auf Gerät gespeichert" },
 ];
 
 const SORT_OPTIONS: { value: string; label: string }[] = [
@@ -80,6 +82,7 @@ function groupItems(items: LibraryItem[]): { standalone: LibraryItem[]; groups: 
 }
 
 function FolderCard({ group, onOpen }: { group: FolderGroup; onOpen: () => void }) {
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
   return (
     <button
       type="button"
@@ -87,15 +90,20 @@ function FolderCard({ group, onOpen }: { group: FolderGroup; onOpen: () => void 
       className="rounded-md border border-border bg-surface p-3 text-left"
     >
       <div className="flex items-start gap-3">
-        {group.thumbnail && (
+        {group.thumbnail && !thumbnailFailed ? (
           <Image
             src={group.thumbnail}
             alt=""
             width={112}
             height={63}
             unoptimized
+            onError={() => setThumbnailFailed(true)}
             className="h-[63px] w-28 shrink-0 rounded object-cover"
           />
+        ) : (
+          <div className="flex h-[63px] w-28 shrink-0 items-center justify-center rounded bg-surface-elevated text-lg text-text-muted">
+            🎬
+          </div>
         )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-card-title">📁 {group.label}</p>
@@ -125,21 +133,25 @@ export default function LibraryPage() {
     setLoading(true);
     setError(null);
     setOfflineOnly(false);
-    // "Heruntergeladen" also needs to include videos that only have an
-    // on-device offline copy (client-side IndexedDB, the server has no idea
-    // about those) - fetch unfiltered from the backend for that case and
-    // merge in the offline-saved set client-side instead.
-    const isDownloadedFilter = query.status === "downloaded-to-device";
+    // "In der App" / "Auf Gerät" are purely client-side (IndexedDB / this
+    // browser's local bookkeeping) - the server has no idea about either,
+    // so fetch unfiltered and filter the result client-side instead.
+    const isClientOnlyFilter = query.status === "saved-in-app" || query.status === "saved-on-device";
     api
-      .library({ ...query, status: isDownloadedFilter ? undefined : query.status, query: search || undefined })
+      .library({ ...query, status: isClientOnlyFilter ? undefined : query.status, query: search || undefined })
       .then(async (fetched) => {
-        if (!isDownloadedFilter) {
-          setItems(fetched);
+        if (query.status === "saved-in-app") {
+          const offline = await listOfflineMeta();
+          const offlineIds = new Set(offline.map((m) => m.id));
+          setItems(fetched.filter((i) => offlineIds.has(i.id)));
           return;
         }
-        const offline = await listOfflineMeta();
-        const offlineIds = new Set(offline.map((m) => m.id));
-        setItems(fetched.filter((i) => i.status === "downloaded_to_device" || offlineIds.has(i.id)));
+        if (query.status === "saved-on-device") {
+          const deviceIds = new Set(listDownloadedToDeviceIds());
+          setItems(fetched.filter((i) => deviceIds.has(i.id)));
+          return;
+        }
+        setItems(fetched);
       })
       .catch(async () => {
         const offline = await listOfflineMeta();

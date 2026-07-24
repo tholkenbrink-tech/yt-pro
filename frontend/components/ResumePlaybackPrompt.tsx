@@ -3,36 +3,23 @@
 interface Props {
   positionLabel: string;
   onRestart: () => void;
-  onDismiss: () => void;
 }
 
-/** Dismissible toast shown after auto-seeking to a saved position - see
- * VideoPlayer.tsx for why this is a toast+immediate-seek, not a blocking
- * prompt. */
-export function ResumePlaybackPrompt({ positionLabel, onRestart, onDismiss }: Props) {
+/** Small icon-only affordance shown after auto-seeking to a saved position -
+ * see VideoPlayer.tsx for why this is an immediate seek, not a blocking
+ * prompt. Deliberately icon-only (no text banner) so it doesn't dominate the
+ * video - the saved position is named via `title`/`aria-label` for anyone
+ * who needs it, not shown as an overlay. */
+export function ResumePlaybackPrompt({ positionLabel, onRestart }: Props) {
   return (
-    <div
-      role="status"
-      className="absolute bottom-3 left-3 right-3 z-10 flex items-center justify-between gap-3 rounded-md bg-overlay px-3 py-2 text-sm text-white backdrop-blur"
+    <button
+      type="button"
+      onClick={onRestart}
+      title={`Fortgesetzt bei ${positionLabel} - von vorne starten`}
+      aria-label={`Fortgesetzt bei ${positionLabel} - von vorne starten`}
+      className="absolute right-3 top-3 z-10 flex min-h-11 min-w-11 items-center justify-center rounded-full bg-overlay text-lg text-white backdrop-blur"
     >
-      <span>Fortgesetzt bei {positionLabel}</span>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onRestart}
-          className="min-h-11 rounded-md bg-white/20 px-3 py-1.5 font-medium"
-        >
-          Von vorne
-        </button>
-        <button
-          type="button"
-          onClick={onDismiss}
-          aria-label="Hinweis schließen"
-          className="flex min-h-11 min-w-11 items-center justify-center text-lg"
-        >
-          ×
-        </button>
-      </div>
-    </div>
+      ↺
+    </button>
   );
 }

@@ -15,6 +15,7 @@ import { toAnalysisResult } from "@/lib/analyzeTransform";
 import { LegalNoticeModal } from "@/components/LegalNoticeModal";
 import { ActiveJobsList } from "@/components/ActiveJobsList";
 import { QualitySelector } from "@/components/QualitySelector";
+import { QuickAccessBar } from "@/components/QuickAccessBar";
 import { Skeleton } from "@/components/Skeleton";
 import { useToast } from "@/components/ToastProvider";
 
@@ -141,6 +142,10 @@ export default function DownloadPage() {
           {loading ? "Analysiere..." : "Analysieren"}
         </button>
       </div>
+
+      {/* Alternative way to fill the box above - pick a saved link instead
+          of pasting one, so it sits right next to "Link einfügen". */}
+      <QuickAccessBar onPick={updateText} />
 
       <div className="mx-4 mb-3">
         <h3 className="mb-2 text-sm font-semibold">Qualität</h3>

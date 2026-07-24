@@ -10,9 +10,15 @@ import { MediaStatusBadge } from "./MediaStatusBadge";
 import { SourceBadge } from "./SourceBadge";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { IOSSaveInstructions, SEEN_INSTRUCTIONS_KEY } from "./IOSSaveInstructions";
+import { DeviceFileInstructions } from "./DeviceFileInstructions";
 import { useToast } from "./ToastProvider";
 import { formatBytes, formatDate, formatDuration } from "@/lib/format";
-import { isOffline, removeOffline, saveOffline } from "@/lib/offlineStore";
+import { isOffline, removeOffline, saveOfflineInApp, triggerDeviceDownload } from "@/lib/offlineStore";
+import {
+  forgetDownloadedToDevice,
+  isDownloadedToDevice,
+  markDownloadedToDevice,
+} from "@/lib/deviceDownloadStore";
 import { shouldDownloadToDevice } from "@/lib/wifiGate";
 
 interface Props {
@@ -28,9 +34,12 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRemoveOfflineConfirm, setShowRemoveOfflineConfirm] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [showDeviceInstructions, setShowDeviceInstructions] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [deviceDownloaded, setDeviceDownloaded] = useState(false);
   const [savingOffline, setSavingOffline] = useState(false);
   const [saveProgressPct, setSaveProgressPct] = useState<number | null>(null);
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const { showToast } = useToast();
   const state = deriveMediaState(item);
   const hasProgress = Boolean(item.progress && !item.progress.completed && item.progress.positionSeconds > 0);
@@ -41,27 +50,19 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
     isOffline(item.id).then((value) => {
       if (!cancelled) setOffline(value);
     });
+    setDeviceDownloaded(isDownloadedToDevice(item.id));
     return () => {
       cancelled = true;
     };
   }, [item.id]);
 
-  const startOffline = async () => {
-    const toDevice = shouldDownloadToDevice();
-    if (toDevice && typeof window !== "undefined" && localStorage.getItem(SEEN_INSTRUCTIONS_KEY) !== "1") {
-      setShowInstructions(true);
-      localStorage.setItem(SEEN_INSTRUCTIONS_KEY, "1");
-    }
+  const startOfflineInApp = async () => {
     setSavingOffline(true);
     setSaveProgressPct(0);
     try {
-      await saveOffline(item, setSaveProgressPct, toDevice);
+      await saveOfflineInApp(item, setSaveProgressPct);
       setOffline(true);
-      showToast(
-        toDevice
-          ? "Heruntergeladen - offline in der App und auf dem Gerät verfügbar"
-          : "Offline in der App gespeichert - Geräte-Download übersprungen (nicht im WLAN)"
-      );
+      showToast("Offline in der App gespeichert");
     } catch {
       showToast("Offline-Speicherung fehlgeschlagen - evtl. zu wenig Speicherplatz");
     } finally {
@@ -86,7 +87,37 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
     if (offline) {
       setShowRemoveOfflineConfirm(true);
     } else {
-      startOffline();
+      startOfflineInApp();
+    }
+  };
+
+  const saveToDevice = () => {
+    if (!shouldDownloadToDevice()) {
+      showToast("Geräte-Download übersprungen (nicht im WLAN)");
+      return;
+    }
+    if (typeof window !== "undefined" && localStorage.getItem(SEEN_INSTRUCTIONS_KEY) !== "1") {
+      setShowInstructions(true);
+      localStorage.setItem(SEEN_INSTRUCTIONS_KEY, "1");
+    }
+    triggerDeviceDownload(item.id);
+    markDownloadedToDevice(item.id);
+    setDeviceDownloaded(true);
+    showToast("Download gestartet - läuft weiter, auch wenn du die App verlässt");
+  };
+
+  const forgetDevice = () => {
+    forgetDownloadedToDevice(item.id);
+    setDeviceDownloaded(false);
+    setShowDeviceInstructions(false);
+    showToast("Aus der Geräte-Liste entfernt");
+  };
+
+  const handleDeviceButtonClick = () => {
+    if (deviceDownloaded) {
+      setShowDeviceInstructions(true);
+    } else {
+      saveToDevice();
     }
   };
 
@@ -115,15 +146,20 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
   return (
     <div className="rounded-md border border-border bg-surface p-3">
       <div className="flex items-start gap-3">
-        {item.thumbnailPath && (
+        {item.thumbnailPath && !thumbnailFailed ? (
           <Image
             src={item.thumbnailPath}
             alt=""
             width={112}
             height={63}
             unoptimized
+            onError={() => setThumbnailFailed(true)}
             className="h-[63px] w-28 shrink-0 rounded object-cover"
           />
+        ) : (
+          <div className="flex h-[63px] w-28 shrink-0 items-center justify-center rounded bg-surface-elevated text-lg text-text-muted">
+            🎬
+          </div>
         )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-card-title">{item.title}</p>
@@ -160,7 +196,7 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
 
       <div className="mt-3 flex items-center gap-2">
         <Link
-          href={`/library/${item.id}`}
+          href={`/library/${item.id}?autoplay=1`}
           aria-label={hasProgress ? "Fortsetzen" : "Abspielen"}
           className="flex min-h-10 min-w-10 items-center justify-center rounded-md bg-accent text-base text-white"
         >
@@ -177,7 +213,7 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
         </button>
         <button
           type="button"
-          aria-label={offline ? "Heruntergeladene Kopie entfernen" : "Herunterladen (Gerät + offline in der App)"}
+          aria-label={offline ? "Offline-Kopie in der App entfernen" : "In der App speichern"}
           disabled={savingOffline}
           onClick={handleOfflineButtonClick}
           className={`flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base disabled:opacity-50 ${
@@ -187,8 +223,18 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
           {savingOffline ? (
             <span className="text-xs font-medium">{saveProgressPct !== null ? `${saveProgressPct}%` : "…"}</span>
           ) : (
-            "⬇"
+            "📲"
           )}
+        </button>
+        <button
+          type="button"
+          aria-label={deviceDownloaded ? "Auf Gerät gespeichert - verwalten" : "Auf Gerät speichern"}
+          onClick={handleDeviceButtonClick}
+          className={`flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base ${
+            deviceDownloaded ? "border-success bg-success/15 text-success" : "border-border"
+          }`}
+        >
+          💾
         </button>
       </div>
 
@@ -243,6 +289,10 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
 
       {showInstructions && (
         <IOSSaveInstructions onClose={() => setShowInstructions(false)} />
+      )}
+
+      {showDeviceInstructions && (
+        <DeviceFileInstructions onForget={forgetDevice} onClose={() => setShowDeviceInstructions(false)} />
       )}
     </div>
   );

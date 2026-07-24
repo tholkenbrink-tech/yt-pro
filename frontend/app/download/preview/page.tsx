@@ -30,6 +30,7 @@ export default function DownloadPreviewPage() {
     sourceUrl: string;
   } | null>(null);
   const [quality, setQuality] = useState(DEFAULT_QUALITY);
+  const [hideAlreadyDownloaded, setHideAlreadyDownloaded] = useState(false);
   // Selection is tracked by array index, not youtubeId - a playlist can
   // legitimately contain the same video twice, which would collapse two
   // distinct entries into one Set member if keyed by id (breaking both
@@ -189,6 +190,9 @@ export default function DownloadPreviewPage() {
               {result.channelName} - {formatDuration(result.duration)} -{" "}
               {formatDate(result.uploadDate)}
             </p>
+            {result.alreadyDownloaded && (
+              <p className="mt-1 text-sm text-text-muted">Bereits im Archiv vorhanden.</p>
+            )}
 
             <h3 className="mb-2 mt-4 text-sm font-semibold">Qualität</h3>
             <QualitySelector
@@ -238,10 +242,22 @@ export default function DownloadPreviewPage() {
                 {allSelected ? "Alle abwählen" : "Alle auswählen"}
               </button>
             </div>
+            {result.items.some((i) => i.alreadyDownloaded) && (
+              <label className="mb-2 flex items-center gap-2 text-sm text-text-secondary">
+                <input
+                  type="checkbox"
+                  checked={hideAlreadyDownloaded}
+                  onChange={(e) => setHideAlreadyDownloaded(e.target.checked)}
+                  className="h-4 w-4 accent-brand dark:accent-brand-dark"
+                />
+                Bereits heruntergeladene ausblenden
+              </label>
+            )}
             <PlaylistItemList
               items={result.items}
               selectedIds={selectedIds}
               onToggle={toggleItem}
+              hideAlreadyDownloaded={hideAlreadyDownloaded}
             />
           </>
         )}

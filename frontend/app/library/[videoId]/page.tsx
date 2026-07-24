@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import type { LibraryItem } from "@/lib/types";
 import { VideoPlayer } from "@/components/VideoPlayer";
@@ -9,7 +9,13 @@ import { SourceBadge } from "@/components/SourceBadge";
 import { formatBytes, formatDate, formatDuration } from "@/lib/format";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { IOSSaveInstructions, SEEN_INSTRUCTIONS_KEY } from "@/components/IOSSaveInstructions";
-import { getOfflineMeta, isOffline, removeOffline, saveOffline } from "@/lib/offlineStore";
+import { DeviceFileInstructions } from "@/components/DeviceFileInstructions";
+import { getOfflineMeta, isOffline, removeOffline, saveOfflineInApp, triggerDeviceDownload } from "@/lib/offlineStore";
+import {
+  forgetDownloadedToDevice,
+  isDownloadedToDevice,
+  markDownloadedToDevice,
+} from "@/lib/deviceDownloadStore";
 import { shouldDownloadToDevice } from "@/lib/wifiGate";
 import { useToast } from "@/components/ToastProvider";
 
@@ -35,6 +41,8 @@ function fromOfflineMeta(meta: Awaited<ReturnType<typeof getOfflineMeta>>): Libr
 export default function VideoPlayerPage() {
   const { videoId } = useParams<{ videoId: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const autoPlay = searchParams.get("autoplay") === "1";
   const [item, setItem] = useState<LibraryItem | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [renderedFromOfflineCache, setRenderedFromOfflineCache] = useState(false);
@@ -45,6 +53,8 @@ export default function VideoPlayerPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRemoveOfflineConfirm, setShowRemoveOfflineConfirm] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [showDeviceInstructions, setShowDeviceInstructions] = useState(false);
+  const [deviceDownloaded, setDeviceDownloaded] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -94,6 +104,7 @@ export default function VideoPlayerPage() {
     isOffline(videoId).then((value) => {
       if (!cancelled) setHasOfflineCopy(value);
     });
+    setDeviceDownloaded(isDownloadedToDevice(videoId));
     return () => {
       cancelled = true;
     };
@@ -144,22 +155,13 @@ export default function VideoPlayerPage() {
     }
   };
 
-  const startOffline = async () => {
-    const toDevice = shouldDownloadToDevice();
-    if (toDevice && typeof window !== "undefined" && localStorage.getItem(SEEN_INSTRUCTIONS_KEY) !== "1") {
-      setShowInstructions(true);
-      localStorage.setItem(SEEN_INSTRUCTIONS_KEY, "1");
-    }
+  const startOfflineInApp = async () => {
     setSavingOffline(true);
     setSaveProgressPct(0);
     try {
-      await saveOffline(item, setSaveProgressPct, toDevice);
+      await saveOfflineInApp(item, setSaveProgressPct);
       setHasOfflineCopy(true);
-      showToast(
-        toDevice
-          ? "Heruntergeladen - offline in der App und auf dem Gerät verfügbar"
-          : "Offline in der App gespeichert - Geräte-Download übersprungen (nicht im WLAN)"
-      );
+      showToast("Offline in der App gespeichert");
     } catch {
       showToast("Offline-Speicherung fehlgeschlagen - evtl. zu wenig Speicherplatz");
     } finally {
@@ -172,7 +174,37 @@ export default function VideoPlayerPage() {
     if (hasOfflineCopy) {
       setShowRemoveOfflineConfirm(true);
     } else {
-      startOffline();
+      startOfflineInApp();
+    }
+  };
+
+  const saveToDevice = () => {
+    if (!shouldDownloadToDevice()) {
+      showToast("Geräte-Download übersprungen (nicht im WLAN)");
+      return;
+    }
+    if (typeof window !== "undefined" && localStorage.getItem(SEEN_INSTRUCTIONS_KEY) !== "1") {
+      setShowInstructions(true);
+      localStorage.setItem(SEEN_INSTRUCTIONS_KEY, "1");
+    }
+    triggerDeviceDownload(item.id);
+    markDownloadedToDevice(item.id);
+    setDeviceDownloaded(true);
+    showToast("Download gestartet - läuft weiter, auch wenn du die App verlässt");
+  };
+
+  const forgetDevice = () => {
+    forgetDownloadedToDevice(item.id);
+    setDeviceDownloaded(false);
+    setShowDeviceInstructions(false);
+    showToast("Aus der Geräte-Liste entfernt");
+  };
+
+  const handleDeviceButtonClick = () => {
+    if (deviceDownloaded) {
+      setShowDeviceInstructions(true);
+    } else {
+      saveToDevice();
     }
   };
 
@@ -191,7 +223,13 @@ export default function VideoPlayerPage() {
   return (
     <main className="mx-auto max-w-2xl px-safe-left px-5 pb-4 pt-6 pr-safe-right">
       <div className="mx-auto max-w-2xl">
-        <VideoPlayer itemId={item.id} title={item.title} channelName={item.channelName} />
+        <VideoPlayer
+          itemId={item.id}
+          title={item.title}
+          channelName={item.channelName}
+          thumbnail={item.thumbnailPath}
+          autoPlay={autoPlay}
+        />
       </div>
 
       <h1 className="mt-4 text-card-title">{item.title}</h1>
@@ -226,7 +264,7 @@ export default function VideoPlayerPage() {
         </button>
         <button
           type="button"
-          aria-label={hasOfflineCopy ? "Heruntergeladene Kopie entfernen" : "Herunterladen (Gerät + offline in der App)"}
+          aria-label={hasOfflineCopy ? "Offline-Kopie in der App entfernen" : "In der App speichern"}
           disabled={savingOffline}
           onClick={handleOfflineButtonClick}
           className={`flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base disabled:opacity-50 ${
@@ -236,8 +274,18 @@ export default function VideoPlayerPage() {
           {savingOffline ? (
             <span className="text-xs font-medium">{saveProgressPct !== null ? `${saveProgressPct}%` : "…"}</span>
           ) : (
-            "⬇"
+            "📲"
           )}
+        </button>
+        <button
+          type="button"
+          aria-label={deviceDownloaded ? "Auf Gerät gespeichert - verwalten" : "Auf Gerät speichern"}
+          onClick={handleDeviceButtonClick}
+          className={`flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base ${
+            deviceDownloaded ? "border-success bg-success/15 text-success" : "border-border"
+          }`}
+        >
+          💾
         </button>
       </div>
 
@@ -286,6 +334,10 @@ export default function VideoPlayerPage() {
 
       {showInstructions && (
         <IOSSaveInstructions onClose={() => setShowInstructions(false)} />
+      )}
+
+      {showDeviceInstructions && (
+        <DeviceFileInstructions onForget={forgetDevice} onClose={() => setShowDeviceInstructions(false)} />
       )}
     </main>
   );

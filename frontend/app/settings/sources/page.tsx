@@ -15,7 +15,9 @@ export default function SourcesPage() {
     setLoading(true);
     api
       .listSources()
-      .then(setSources)
+      // Quick Access playlists are manually-triggered bookmarks managed from
+      // the download page, not scheduled automation - keep them out of this list.
+      .then((all) => setSources(all.filter((s) => !s.isQuickAccess)))
       .catch(() => setError("Quellen konnten nicht geladen werden."))
       .finally(() => setLoading(false));
   };
