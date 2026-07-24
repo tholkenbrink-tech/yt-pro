@@ -38,6 +38,19 @@ export function LibraryIcon({ active }: { active?: boolean }) {
   );
 }
 
+export function FilterIcon({ active }: { active?: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+      <line x1="2" y1="4.5" x2="16" y2="4.5" stroke="currentColor" strokeWidth={active ? 1.8 : 1.6} strokeLinecap="round" />
+      <line x1="2" y1="9" x2="16" y2="9" stroke="currentColor" strokeWidth={active ? 1.8 : 1.6} strokeLinecap="round" />
+      <line x1="2" y1="13.5" x2="16" y2="13.5" stroke="currentColor" strokeWidth={active ? 1.8 : 1.6} strokeLinecap="round" />
+      <circle cx="6" cy="4.5" r="1.8" className="fill-surface" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="12" cy="9" r="1.8" className="fill-surface" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="8" cy="13.5" r="1.8" className="fill-surface" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
 export function SettingsIcon({ active }: { active?: boolean }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">

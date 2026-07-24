@@ -7,7 +7,8 @@ import { api } from "@/lib/api";
 import type { LibraryItem, LibraryQuery } from "@/lib/types";
 import { MediaCard } from "@/components/MediaCard";
 import { Skeleton } from "@/components/Skeleton";
-import { SortSheet } from "@/components/SortSheet";
+import { FilterSheet } from "@/components/FilterSheet";
+import { FilterIcon } from "@/components/navIcons";
 import { listOfflineMeta } from "@/lib/offlineStore";
 import { listDownloadedToDeviceIds } from "@/lib/deviceDownloadStore";
 import { useUsers } from "@/lib/useUsers";
@@ -17,10 +18,13 @@ function displayName(name: string) {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
-const STATUS_FILTERS: { value: string; label: string }[] = [
+const OVERVIEW_FILTERS: { value: string; label: string }[] = [
   { value: "", label: "Alle" },
   { value: "new", label: "Neu" },
   { value: "watched", label: "Angesehen" },
+];
+
+const STORAGE_FILTERS: { value: string; label: string }[] = [
   { value: "saved-in-app", label: "In der App gespeichert" },
   { value: "saved-on-device", label: "Auf Gerät gespeichert" },
 ];
@@ -126,7 +130,7 @@ export default function LibraryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [offlineOnly, setOfflineOnly] = useState(false);
-  const [sortSheetOpen, setSortSheetOpen] = useState(false);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [openFolder, setOpenFolder] = useState<string | null>(null);
 
   const load = () => {
@@ -190,11 +194,25 @@ export default function LibraryPage() {
   const { standalone, groups } = useMemo(() => groupItems(items), [items]);
   const activeGroup = groups.find((g) => g.key === openFolder) ?? null;
 
+  const sort = query.sort ?? "date_desc";
+  const status = query.status ?? "";
+  const hasActiveFilters = sort !== "date_desc" || status !== "" || (query.userId ?? undefined) !== selfId;
+  const sortLabel = SORT_OPTIONS.find((o) => o.value === sort)?.label ?? "Neueste";
+  const statusLabel = [...OVERVIEW_FILTERS, ...STORAGE_FILTERS].find((o) => o.value === status && o.value !== "")?.label;
+  const userLabel =
+    query.userId === "all" ? "Alle" : query.userId && query.userId !== selfId ? displayName(users.find((u) => u.id === query.userId)?.name ?? "") : null;
+  const summaryParts = [`Sortiert nach ${sortLabel}`, statusLabel, userLabel].filter(Boolean);
+  const summaryLine = summaryParts.join(" · ") + (hasActiveFilters ? " — antippen zum Ändern" : "");
+  const userOptions = [
+    ...users.map((u) => ({ value: u.id as string, label: displayName(u.name) })),
+    { value: "all", label: "Alle" },
+  ];
+
   return (
     <main className="mx-auto max-w-6xl px-4 pb-4 pt-6">
       <h1 className="mb-4 text-page-title">Mediathek</h1>
 
-      <div className="mb-3 flex gap-2">
+      <div className="flex gap-2">
         <div className="relative min-h-11 flex-1">
           <input
             type="search"
@@ -215,74 +233,28 @@ export default function LibraryPage() {
           </button>
         </div>
 
-        {/* Below md, a native <select> is fiddly to tap precisely and looks
-            out of place, so it opens a bottom sheet instead - matches the
-            app's "sheets and drawers" interaction pattern. md+ has room for
-            the plain select. */}
         <button
           type="button"
-          onClick={() => setSortSheetOpen(true)}
-          className="min-h-11 shrink-0 rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary md:hidden"
+          onClick={() => setFilterSheetOpen(true)}
+          aria-label="Filter und Sortierung öffnen"
+          className="relative min-h-11 min-w-11 shrink-0 rounded-md border border-border bg-surface text-text-secondary"
         >
-          Sortieren: {SORT_OPTIONS.find((o) => o.value === (query.sort ?? "date_desc"))?.label}
+          <span className="mx-auto flex h-full w-full items-center justify-center">
+            <FilterIcon />
+          </span>
+          {hasActiveFilters && (
+            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-accent" />
+          )}
         </button>
-        <div className="hidden shrink-0 md:block">
-          <label htmlFor="sort" className="sr-only">
-            Sortieren
-          </label>
-          <select
-            id="sort"
-            value={query.sort ?? "date_desc"}
-            onChange={(e) => setQuery((q) => ({ ...q, sort: e.target.value }))}
-            className="min-h-11 rounded-md border border-border bg-surface p-2 text-sm text-text-primary"
-          >
-            {SORT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
       </div>
 
-      <div className="mb-3 flex flex-wrap gap-2">
-        {STATUS_FILTERS.map((f) => (
-          <button
-            key={f.value}
-            type="button"
-            onClick={() => setQuery((q) => ({ ...q, status: f.value || undefined }))}
-            className={`min-h-11 rounded-pill border px-3 py-1.5 text-xs font-medium ${
-              (query.status ?? "") === f.value
-                ? "border-accent bg-accent text-white"
-                : "border-border text-text-secondary"
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      {users.length > 1 && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          {[
-            ...users.map((u) => ({ value: u.id as string | undefined, label: displayName(u.name) })),
-            { value: "all", label: "Alle" },
-          ].map((f) => (
-            <button
-              key={f.label}
-              type="button"
-              onClick={() => setQuery((q) => ({ ...q, userId: f.value }))}
-              className={`min-h-11 rounded-pill border px-3 py-1.5 text-xs font-medium ${
-                (query.userId ?? undefined) === f.value
-                  ? "border-accent bg-accent text-white"
-                  : "border-border text-text-secondary"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <button
+        type="button"
+        onClick={() => setFilterSheetOpen(true)}
+        className="mb-4 mt-2 block text-left text-meta text-text-muted"
+      >
+        {summaryLine}
+      </button>
 
       {loading && (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3" aria-hidden="true">
@@ -351,12 +323,24 @@ export default function LibraryPage() {
         </div>
       )}
 
-      <SortSheet
-        open={sortSheetOpen}
-        options={SORT_OPTIONS}
-        selected={query.sort ?? "date_desc"}
-        onSelect={(value) => setQuery((q) => ({ ...q, sort: value }))}
-        onClose={() => setSortSheetOpen(false)}
+      <FilterSheet
+        open={filterSheetOpen}
+        onClose={() => setFilterSheetOpen(false)}
+        sortOptions={SORT_OPTIONS}
+        sort={sort}
+        onSortChange={(value) => setQuery((q) => ({ ...q, sort: value }))}
+        overviewOptions={OVERVIEW_FILTERS}
+        storageOptions={STORAGE_FILTERS}
+        status={status}
+        onStatusChange={(value) => setQuery((q) => ({ ...q, status: q.status === value ? undefined : value || undefined }))}
+        showUsers={users.length > 1}
+        userOptions={userOptions}
+        userId={(query.userId as string) ?? ""}
+        onUserChange={(value) => setQuery((q) => ({ ...q, userId: value }))}
+        onReset={() => {
+          setQuery({ sort: "date_desc", userId: selfId });
+          setSearch("");
+        }}
       />
     </main>
   );
