@@ -1,5 +1,7 @@
 "use client";
 
+import { BottomSheet } from "./BottomSheet";
+
 /** Shared across every surface that can trigger a device download (Aktivität,
  * Mediathek, video detail page) so the "how to save it" popup only ever
  * shows once app-wide, not once per surface. */
@@ -15,33 +17,23 @@ const STEPS = [
 
 export function IOSSaveInstructions({ onClose }: { onClose: () => void }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="ios-save-title"
-    >
-      <div className="safe-area-shell w-full max-w-md rounded-t-2xl bg-white px-8 py-8 shadow-xl dark:bg-gray-900 sm:rounded-2xl">
-        <h2 id="ios-save-title" className="text-lg font-semibold">
-          So sicherst du die Datei auf deinem iPhone
-        </h2>
-        <ol className="mt-4 list-decimal space-y-3 pl-5 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-          {STEPS.map((step, i) => (
-            <li key={i}>{step}</li>
-          ))}
-        </ol>
-        <p className="mt-4 text-xs leading-relaxed text-gray-400 dark:text-gray-500">
-          yt-pro legt die Datei nicht selbst an einem festen Ort ab - der
-          endgültige Speicherort wird von dir in Safari/Dateien festgelegt.
-        </p>
-        <button
-          type="button"
-          onClick={onClose}
-          className="mt-6 w-full rounded-lg bg-brand px-4 py-3 font-medium text-white active:opacity-80 dark:bg-brand-dark dark:text-gray-950"
-        >
-          Verstanden
-        </button>
-      </div>
-    </div>
+    <BottomSheet open title="So sicherst du die Datei auf deinem iPhone" onClose={onClose}>
+      <ol className="list-decimal space-y-3 pl-5 text-sm leading-relaxed text-text-primary">
+        {STEPS.map((step, i) => (
+          <li key={i}>{step}</li>
+        ))}
+      </ol>
+      <p className="mt-4 text-sm leading-relaxed text-text-secondary">
+        yt-pro legt die Datei nicht selbst an einem festen Ort ab - der
+        endgültige Speicherort wird von dir in Safari/Dateien festgelegt.
+      </p>
+      <button
+        type="button"
+        onClick={onClose}
+        className="mt-6 min-h-11 w-full rounded-md bg-accent px-4 py-3 text-sm font-semibold text-white"
+      >
+        Verstanden
+      </button>
+    </BottomSheet>
   );
 }

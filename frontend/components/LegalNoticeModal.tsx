@@ -22,23 +22,23 @@ export function LegalNoticeModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-overlay p-4 sm:items-center"
       role="dialog"
       aria-modal="true"
       aria-labelledby="legal-notice-title"
     >
-      <div className="safe-area-shell w-full max-w-md rounded-t-2xl bg-white px-8 py-8 shadow-xl dark:bg-gray-900 sm:rounded-2xl">
-        <h2 id="legal-notice-title" className="text-lg font-semibold">
+      <div className="safe-area-shell dialog-enter w-full max-w-md rounded-t-2xl bg-surface-elevated px-5 pb-9 pt-6 shadow-xl sm:rounded-xl sm:p-6">
+        <h2 id="legal-notice-title" className="text-card-title">
           Nur für private, rechtmäßige Nutzung
         </h2>
-        <div className="mt-4 space-y-3">
-          <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+        <div className="mt-3 space-y-3">
+          <p className="text-sm leading-relaxed text-text-secondary">
             Diese App ist ausschließlich für den privaten Gebrauch bestimmt.
             Lade nur Videos herunter, die dir gehören, gemeinfrei sind, für die
             eine ausdrückliche Erlaubnis vorliegt, oder für die du die Rechte
             besitzt.
           </p>
-          <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+          <p className="text-sm leading-relaxed text-text-secondary">
             Das Umgehen von DRM oder anderen Schutzmaßnahmen ist nicht gestattet
             und wird von dieser App nicht unterstützt.
           </p>
@@ -46,7 +46,7 @@ export function LegalNoticeModal() {
         <button
           type="button"
           onClick={accept}
-          className="mt-6 w-full rounded-lg bg-brand px-4 py-3 font-medium text-white active:opacity-80 dark:bg-brand-dark dark:text-gray-950"
+          className="mt-6 min-h-11 w-full rounded-md bg-accent px-4 py-3 text-sm font-semibold text-white active:opacity-80"
         >
           Verstanden
         </button>

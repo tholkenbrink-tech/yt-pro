@@ -7,10 +7,6 @@ export interface NativePlayerTimeUpdate {
   isPlaying: boolean;
 }
 
-export interface NativePlayerClosedEvent {
-  positionSeconds: number;
-}
-
 export interface NativePlayerErrorEvent {
   message: string;
 }
@@ -31,10 +27,6 @@ export interface NativePlayerPluginInterface {
   addListener(
     eventName: "timeUpdate",
     listenerFunc: (data: NativePlayerTimeUpdate) => void
-  ): Promise<{ remove: () => void }>;
-  addListener(
-    eventName: "closed",
-    listenerFunc: (data: NativePlayerClosedEvent) => void
   ): Promise<{ remove: () => void }>;
   addListener(
     eventName: "playbackError",

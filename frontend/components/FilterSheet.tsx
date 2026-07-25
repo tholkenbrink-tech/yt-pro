@@ -80,8 +80,8 @@ export function FilterSheet({
     <BottomSheet open={open} onClose={onClose}>
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-card-title">Filter &amp; Sortierung</h2>
-        <button type="button" onClick={onReset} className="min-h-9 text-sm font-medium text-accent">
-          Zurücksetzen
+        <button type="button" onClick={onReset} className="min-h-9 shrink-0 text-sm font-medium text-accent">
+          Reset
         </button>
       </div>
 

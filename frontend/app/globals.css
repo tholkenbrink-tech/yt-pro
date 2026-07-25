@@ -1,5 +1,25 @@
 @tailwind base;
 @tailwind components;
+
+/* Declared before the utilities layer on purpose: components pair this
+   with their own padding utilities (e.g. BottomSheet's
+   `safe-area-shell px-5 pb-9 pt-6`) expecting those explicit values to
+   win over the inset fallback. Tailwind doesn't wrap output in native
+   @layer here, so with equal specificity the rule declared later in the
+   stylesheet wins - if this sat after @tailwind utilities, it would
+   silently zero out padding-left/right on every non-notched edge (i.e.
+   always, in portrait). */
+.safe-area-shell {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+.bottom-nav {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+}
+
 @tailwind utilities;
 
 :root {
@@ -105,17 +125,6 @@ body {
   color: var(--color-text-primary);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
     "Inter", sans-serif;
-}
-
-.safe-area-shell {
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
-}
-
-.bottom-nav {
-  padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
 }
 
 :focus-visible {

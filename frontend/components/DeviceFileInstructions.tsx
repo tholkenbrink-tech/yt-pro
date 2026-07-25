@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { attemptOpenFilesApp } from "@/lib/deviceDownloadStore";
+import { BottomSheet } from "./BottomSheet";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 
 const STEPS = [
@@ -25,21 +26,13 @@ export function DeviceFileInstructions({ onForget, onClose }: Props) {
   const [showForgetConfirm, setShowForgetConfirm] = useState(false);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="device-file-title"
-    >
-      <div className="safe-area-shell w-full max-w-md rounded-t-2xl bg-white px-8 py-8 shadow-xl dark:bg-gray-900 sm:rounded-2xl">
-        <h2 id="device-file-title" className="text-lg font-semibold">
-          Datei auf dem iPhone löschen
-        </h2>
-        <p className="mt-2 text-xs leading-relaxed text-gray-400 dark:text-gray-500">
+    <>
+      <BottomSheet open title="Datei auf dem iPhone löschen" onClose={onClose}>
+        <p className="-mt-2 mb-4 text-sm leading-relaxed text-text-secondary">
           yt-pro kann diese Datei nicht selbst löschen - sie liegt außerhalb
           der App, in deiner Dateien-App.
         </p>
-        <ol className="mt-4 list-decimal space-y-3 pl-5 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+        <ol className="list-decimal space-y-3 pl-5 text-sm leading-relaxed text-text-primary">
           {STEPS.map((step, i) => (
             <li key={i}>{step}</li>
           ))}
@@ -47,25 +40,25 @@ export function DeviceFileInstructions({ onForget, onClose }: Props) {
         <button
           type="button"
           onClick={attemptOpenFilesApp}
-          className="mt-6 w-full rounded-lg border border-gray-300 px-4 py-3 font-medium active:opacity-80 dark:border-gray-700"
+          className="mt-6 min-h-11 w-full rounded-md border border-border px-4 py-3 text-sm font-medium"
         >
           Dateien-App öffnen (Versuch)
         </button>
         <button
           type="button"
           onClick={() => setShowForgetConfirm(true)}
-          className="mt-2 w-full rounded-lg px-4 py-3 text-sm font-medium text-error active:opacity-80"
+          className="mt-2 min-h-11 w-full rounded-md px-4 py-3 text-sm font-medium text-error"
         >
           Aus dieser Liste entfernen (löscht die Datei nicht)
         </button>
         <button
           type="button"
           onClick={onClose}
-          className="mt-2 w-full rounded-lg bg-brand px-4 py-3 font-medium text-white active:opacity-80 dark:bg-brand-dark dark:text-gray-950"
+          className="mt-2 min-h-11 w-full rounded-md bg-accent px-4 py-3 text-sm font-semibold text-white"
         >
           Schließen
         </button>
-      </div>
+      </BottomSheet>
 
       <ConfirmationDialog
         open={showForgetConfirm}
@@ -76,6 +69,6 @@ export function DeviceFileInstructions({ onForget, onClose }: Props) {
         onConfirm={onForget}
         onCancel={() => setShowForgetConfirm(false)}
       />
-    </div>
+    </>
   );
 }

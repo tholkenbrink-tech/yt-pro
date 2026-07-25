@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import {
   NativePlayer,
-  type NativePlayerClosedEvent,
   type NativePlayerErrorEvent,
   type NativePlayerTimeUpdate,
 } from "@/lib/nativePlayer";
@@ -40,12 +39,15 @@ interface Props {
  *
  * Resume position, mark-watched-at-95% and settings persistence all still
  * go through the same api.* calls the web player uses - only the playback
- * surface itself is native here, driven by periodic "timeUpdate" events and
- * a "closed" event from the plugin.
+ * surface itself is native here, driven by periodic "timeUpdate" events.
+ * The native player is embedded inline (not a fullscreen modal), so there's
+ * no native "Done" button - dismissal is always explicit, either the user
+ * navigating away (this component unmounting) or opening another video.
  */
 export function NativeVideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }: Props) {
   const [isPresented, setIsPresented] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isPresentedRef = useRef(false);
   const lastSavedAtRef = useRef(0);
   const markedWatchedRef = useRef(false);
   const settingsRef = useRef(getPlayerSettings());
@@ -78,6 +80,7 @@ export function NativeVideoPlayer({ itemId, title, channelName, thumbnail, autoP
         startTime,
         backgroundMode: backgroundPlaybackMode,
       });
+      isPresentedRef.current = true;
       setIsPresented(true);
     } catch (err) {
       // Logged rather than shown - the native side's actual rejection
@@ -110,11 +113,6 @@ export function NativeVideoPlayer({ itemId, title, channelName, thumbnail, autoP
       }
     });
 
-    const closedSub = NativePlayer.addListener("closed", (data: NativePlayerClosedEvent) => {
-      setIsPresented(false);
-      saveProgress(data.positionSeconds, data.positionSeconds > 0 ? data.positionSeconds + 1 : 0);
-    });
-
     // Fires when the asset itself fails to load (auth, deleted file,
     // unsupported codec) - present() has already resolved by then since
     // that only confirms the native player screen was shown, not that
@@ -126,8 +124,24 @@ export function NativeVideoPlayer({ itemId, title, channelName, thumbnail, autoP
 
     return () => {
       timeUpdateSub.then((handle) => handle.remove());
-      closedSub.then((handle) => handle.remove());
       errorSub.then((handle) => handle.remove());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemId]);
+
+  // The native player has no "Done" button to dismiss itself (see the
+  // module comment) - navigating away from this page has to explicitly
+  // tear it down, or it would keep floating on top of whatever screen the
+  // SPA navigates to next.
+  useEffect(() => {
+    return () => {
+      if (!isPresentedRef.current) return;
+      isPresentedRef.current = false;
+      NativePlayer.dismiss()
+        .then(({ positionSeconds }) => {
+          saveProgress(positionSeconds, positionSeconds > 0 ? positionSeconds + 1 : 0);
+        })
+        .catch(() => undefined);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemId]);

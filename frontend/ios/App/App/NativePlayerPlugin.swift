@@ -16,25 +16,20 @@ import WebKit
 /// category (configured in AppDelegate) plus `UIBackgroundModes: audio` in
 /// Info.plist is all it takes for the audio track to survive backgrounding.
 ///
+/// The player is embedded as a child view controller pinned near the top of
+/// the screen rather than presented modally full-screen - that's what gives
+/// it AVKit's own inline "expand to fullscreen" control instead of forcing
+/// fullscreen the instant playback starts. Fullscreen is then just a native
+/// UI choice the user makes from the player's own controls; we don't have to
+/// do anything extra for it to work.
+///
 /// The web side stays the source of truth for everything else (resume
 /// position, offline files, mark-watched-at-95%, settings) - this plugin
 /// just presents the native player surface and reports position/playback
-/// state back via periodic "timeUpdate" events and on dismissal, so the
-/// existing api.saveProgress()/api.markWatched() calls keep working
-/// unchanged from the JS side.
-/// Plain AVPlayerViewController gives no hook for "the user tapped Done" -
-/// only `viewDidDisappear` reliably fires for every dismissal path (Done
-/// button or programmatic), so this thin subclass exists purely to surface
-/// that as a closure the plugin can observe.
-private class ClosableAVPlayerViewController: AVPlayerViewController {
-    var onDidDisappear: (() -> Void)?
-
-    override func viewDidDisappear(_ animated: Bool) {
-        super.viewDidDisappear(animated)
-        onDidDisappear?()
-    }
-}
-
+/// state back via periodic "timeUpdate" events, so the existing
+/// api.saveProgress()/api.markWatched() calls keep working unchanged from
+/// the JS side. Dismissal is always explicit (JS calls dismiss()) since an
+/// inline-embedded player has no "Done" button of its own.
 @objc(NativePlayerPlugin)
 public class NativePlayerPlugin: CAPPlugin, CAPBridgedPlugin, AVPlayerViewControllerDelegate {
     public let identifier = "NativePlayerPlugin"
@@ -46,11 +41,9 @@ public class NativePlayerPlugin: CAPPlugin, CAPBridgedPlugin, AVPlayerViewContro
     ]
 
     private var player: AVPlayer?
-    private var playerViewController: ClosableAVPlayerViewController?
+    private var playerViewController: AVPlayerViewController?
     private var timeObserverToken: Any?
     private var statusObservation: NSKeyValueObservation?
-    private var isEnteringPictureInPicture = false
-    private var isDismissingProgrammatically = false
     private var didResolvePresent = false
 
     @objc func present(_ call: CAPPluginCall) {
@@ -100,6 +93,12 @@ public class NativePlayerPlugin: CAPPlugin, CAPBridgedPlugin, AVPlayerViewContro
     ) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
+
+            guard let rootVC = self.bridge?.viewController else {
+                call.reject("No root view controller to present from")
+                return
+            }
+
             self.teardownPlayer()
             self.didResolvePresent = false
 
@@ -118,48 +117,35 @@ public class NativePlayerPlugin: CAPPlugin, CAPBridgedPlugin, AVPlayerViewContro
                 self?.notifyListeners("playbackError", data: ["message": message])
             }
 
-            let vc = ClosableAVPlayerViewController()
+            let vc = AVPlayerViewController()
             vc.player = player
             vc.delegate = self
             vc.allowsPictureInPicturePlayback = true
             vc.canStartPictureInPictureAutomaticallyFromInline = pip
-            vc.modalPresentationStyle = .fullScreen
-            vc.onDidDisappear = { [weak self] in
-                guard let self = self else { return }
-                // Also fires when PiP starts (the view controller leaves the
-                // hierarchy either way) or when we dismiss it ourselves from
-                // dismiss() below - neither of those is "the user closed the
-                // player without going through our JS dismiss() call".
-                if self.isEnteringPictureInPicture || self.isDismissingProgrammatically {
-                    return
-                }
-                let position = self.player?.currentTime().seconds ?? 0
-                self.notifyListeners("closed", data: [
-                    "positionSeconds": position.isFinite ? position : 0
-                ])
-                self.teardownPlayer()
-            }
             self.playerViewController = vc
+
+            rootVC.addChild(vc)
+            rootVC.view.addSubview(vc.view)
+            vc.didMove(toParent: rootVC)
+
+            let safeArea = rootVC.view.safeAreaInsets
+            let width = rootVC.view.bounds.width
+            let height = width * 9 / 16
+            vc.view.frame = CGRect(x: 0, y: safeArea.top, width: width, height: height)
+            vc.view.autoresizingMask = [.flexibleWidth, .flexibleBottomMargin]
 
             self.setNowPlayingMetadata(title: title, artist: artist, artworkUrl: artworkUrl)
             self.setupRemoteCommandCenter()
             self.observeTime()
 
-            guard let rootVC = self.bridge?.viewController else {
-                call.reject("No root view controller to present from")
-                return
-            }
-
             if startTime > 0 {
                 player.seek(to: CMTime(seconds: startTime, preferredTimescale: 600))
             }
 
-            rootVC.present(vc, animated: true) {
-                player.play()
-                if !self.didResolvePresent {
-                    self.didResolvePresent = true
-                    call.resolve()
-                }
+            player.play()
+            if !self.didResolvePresent {
+                self.didResolvePresent = true
+                call.resolve()
             }
         }
     }
@@ -171,18 +157,8 @@ public class NativePlayerPlugin: CAPPlugin, CAPBridgedPlugin, AVPlayerViewContro
                 return
             }
             let position = self.player?.currentTime().seconds ?? 0
-            self.isDismissingProgrammatically = true
-            if let vc = self.playerViewController, vc.presentingViewController != nil {
-                vc.dismiss(animated: true) {
-                    call.resolve(["positionSeconds": position.isFinite ? position : 0])
-                    self.teardownPlayer()
-                    self.isDismissingProgrammatically = false
-                }
-            } else {
-                call.resolve(["positionSeconds": position.isFinite ? position : 0])
-                self.teardownPlayer()
-                self.isDismissingProgrammatically = false
-            }
+            self.teardownPlayer()
+            call.resolve(["positionSeconds": position.isFinite ? position : 0])
         }
     }
 
@@ -209,28 +185,6 @@ public class NativePlayerPlugin: CAPPlugin, CAPBridgedPlugin, AVPlayerViewContro
             ])
             self.updateNowPlayingElapsedTime()
         }
-    }
-
-    // MARK: - AVPlayerViewControllerDelegate
-
-    // Suppress the "user closed the player" signal while the transition is
-    // actually just entering/leaving Picture-in-Picture - the view
-    // controller disappears from the main hierarchy in both cases, and
-    // without this the web side would wrongly treat "entered PiP" the same
-    // as "closed the player".
-    public func playerViewControllerWillStartPictureInPicture(_ playerViewController: AVPlayerViewController) {
-        isEnteringPictureInPicture = true
-    }
-
-    public func playerViewControllerDidStartPictureInPicture(_ playerViewController: AVPlayerViewController) {
-        isEnteringPictureInPicture = false
-    }
-
-    public func playerViewController(
-        _ playerViewController: AVPlayerViewController,
-        failedToStartPictureInPictureWithError error: Error
-    ) {
-        isEnteringPictureInPicture = false
     }
 
     // MARK: - Now Playing / lock screen controls
@@ -318,6 +272,11 @@ public class NativePlayerPlugin: CAPPlugin, CAPBridgedPlugin, AVPlayerViewContro
         statusObservation = nil
         player?.pause()
         player = nil
+        if let vc = playerViewController {
+            vc.willMove(toParent: nil)
+            vc.view.removeFromSuperview()
+            vc.removeFromParent()
+        }
         playerViewController = nil
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
