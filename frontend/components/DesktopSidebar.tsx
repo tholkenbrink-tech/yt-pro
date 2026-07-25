@@ -30,7 +30,7 @@ export function DesktopSidebar() {
   };
 
   return (
-    <aside className="fixed bottom-0 left-0 top-0 z-30 hidden w-64 flex-col border-r border-border bg-surface p-4 md:flex">
+    <aside className="fixed bottom-0 left-0 top-0 z-30 hidden w-64 flex-col border-r border-border bg-surface py-4 pr-4 pl-[calc(1rem+env(safe-area-inset-left))] md:flex">
       <div className="mb-6 flex items-center gap-2 px-2">
         <Image src="/icons/icon-192.png" alt="" width={28} height={28} className="rounded-md" />
         <span className="text-card-title font-bold text-text-primary">yt-pro</span>
