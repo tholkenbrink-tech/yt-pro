@@ -17,12 +17,15 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
+    "@capacitor/core": "^8.4.2",
+    "@capacitor/ios": "^8.4.2",
     "@opennextjs/cloudflare": "^1.20.1",
     "next": "^15.5.20",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.2",
     "@playwright/test": "^1.46.0",
     "@types/node": "^20.14.0",
     "@types/react": "^19.2.17",
