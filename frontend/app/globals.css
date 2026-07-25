@@ -93,6 +93,11 @@
 html,
 body {
   min-height: 100%;
+  /* Prevent iOS/iPadOS rubber-band overscroll: without this, the document
+     can bounce past its top/bottom edge, and WebKit visually drags
+     `position: fixed` elements (e.g. the desktop sidebar) along with the
+     bounce instead of keeping them pinned to the viewport. */
+  overscroll-behavior: none;
 }
 
 body {
