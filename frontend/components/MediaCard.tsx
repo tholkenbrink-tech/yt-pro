@@ -164,9 +164,13 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-card-title">{item.title}</p>
+          <p className="truncate text-card-title notranslate" translate="no">
+            {item.title}
+          </p>
           {item.channelName && (
-            <p className="truncate text-meta text-text-muted">{item.channelName}</p>
+            <p className="truncate text-meta text-text-muted notranslate" translate="no">
+              {item.channelName}
+            </p>
           )}
           <p className="mt-1 text-meta text-text-muted">
             {[formatDuration(item.duration), item.selectedQuality, formatBytes(item.fileSize)]

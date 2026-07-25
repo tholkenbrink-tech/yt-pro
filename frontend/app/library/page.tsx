@@ -108,7 +108,9 @@ const FolderCard = memo(function FolderCard({ group, onOpen }: { group: FolderGr
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-card-title">📁 {group.label}</p>
+          <p className="truncate text-card-title">
+            📁 <span className="notranslate" translate="no">{group.label}</span>
+          </p>
           <p className="mt-1 text-meta text-text-muted">{group.items.length} Videos</p>
         </div>
       </div>

@@ -247,9 +247,15 @@ export default function VideoPlayerPage() {
         />
       </div>
 
-      <h1 className="mt-4 text-card-title">{item.title}</h1>
+      <h1 className="mt-4 text-card-title notranslate" translate="no">
+        {item.title}
+      </h1>
       <div className="mt-1 flex flex-wrap items-center gap-2 text-meta text-text-muted">
-        {item.channelName && <span>{item.channelName}</span>}
+        {item.channelName && (
+          <span className="notranslate" translate="no">
+            {item.channelName}
+          </span>
+        )}
         {renderedFromOfflineCache ? (
           <span className="rounded-pill bg-success/15 px-2.5 py-1 text-xs font-medium text-success">
             Offline
