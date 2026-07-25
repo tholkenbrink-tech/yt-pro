@@ -9,13 +9,23 @@
 
 import { useSyncExternalStore } from "react";
 
-type QueueEntry = { itemId: string; run: () => Promise<void> };
+export interface QueuedDownloadInfo {
+  itemId: string;
+  title: string;
+  thumbnail?: string;
+}
+
+type QueueEntry = QueuedDownloadInfo & { run: (signal: AbortSignal) => Promise<void> };
 
 const queue: QueueEntry[] = [];
 let runningId: string | null = null;
+let runningInfo: QueuedDownloadInfo | null = null;
+let runningController: AbortController | null = null;
 const listeners = new Set<() => void>();
+let version = 0;
 
 function notify(): void {
+  version++;
   for (const listener of listeners) listener();
 }
 
@@ -23,19 +33,28 @@ function processQueue(): void {
   if (runningId !== null) return;
   const next = queue.shift();
   if (!next) return;
-  runningId = next.itemId;
+  const { run, ...info } = next;
+  runningId = info.itemId;
+  runningInfo = info;
+  runningController = new AbortController();
   notify();
-  next.run().finally(() => {
+  run(runningController.signal).finally(() => {
     runningId = null;
+    runningInfo = null;
+    runningController = null;
     notify();
     processQueue();
   });
 }
 
 /** No-op if the item is already queued or currently downloading. */
-export function enqueueDownload(itemId: string, run: () => Promise<void>): void {
+export function enqueueDownload(
+  itemId: string,
+  run: (signal: AbortSignal) => Promise<void>,
+  info?: { title: string; thumbnail?: string }
+): void {
   if (runningId === itemId || queue.some((entry) => entry.itemId === itemId)) return;
-  queue.push({ itemId, run });
+  queue.push({ itemId, title: info?.title ?? itemId, thumbnail: info?.thumbnail, run });
   notify();
   processQueue();
 }
@@ -48,6 +67,16 @@ export function cancelQueuedDownload(itemId: string): boolean {
   if (index === -1) return false;
   queue.splice(index, 1);
   notify();
+  return true;
+}
+
+/** Aborts the currently running in-app download, if it's the given item.
+ * The abort surfaces as an AbortError rejection out of the download's own
+ * fetch, which the caller's saveOfflineInApp catch block turns into a
+ * "cancelled" toast instead of a "failed" one. */
+export function cancelRunningDownload(itemId: string): boolean {
+  if (runningId !== itemId || !runningController) return false;
+  runningController.abort();
   return true;
 }
 
@@ -64,4 +93,20 @@ export function subscribe(listener: () => void): () => void {
 
 export function useDownloadQueueStatus(itemId: string): "idle" | "queued" | "downloading" {
   return useSyncExternalStore(subscribe, () => getStatus(itemId));
+}
+
+/** Snapshot of the running download and everything waiting behind it, for
+ * the Aktivität "In-App-Downloads" tab. `version` is a plain counter (not
+ * the list itself) so useSyncExternalStore gets a stable primitive
+ * reference between notify() calls instead of a fresh array every render. */
+export function useQueueVersion(): number {
+  return useSyncExternalStore(subscribe, () => version);
+}
+
+export function getRunningDownload(): QueuedDownloadInfo | null {
+  return runningInfo;
+}
+
+export function listQueuedDownloads(): QueuedDownloadInfo[] {
+  return queue.map(({ itemId, title, thumbnail }) => ({ itemId, title, thumbnail }));
 }

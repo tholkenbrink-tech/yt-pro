@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import {
   NativePlayer,
   type NativePlayerClosedEvent,
+  type NativePlayerErrorEvent,
   type NativePlayerTimeUpdate,
 } from "@/lib/nativePlayer";
 import {
@@ -13,6 +14,7 @@ import {
   setPlayerSettings,
 } from "@/lib/playerSettings";
 import { BackgroundAudioButton } from "./BackgroundAudioButton";
+import { BackgroundPipButton } from "./BackgroundPipButton";
 
 const SAVE_INTERVAL_MS = 7000;
 const RESUME_THRESHOLD_SECONDS = 5;
@@ -77,7 +79,12 @@ export function NativeVideoPlayer({ itemId, title, channelName, thumbnail, autoP
         backgroundMode: backgroundPlaybackMode,
       });
       setIsPresented(true);
-    } catch {
+    } catch (err) {
+      // Logged rather than shown - the native side's actual rejection
+      // reason (e.g. "No root view controller to present from") is far more
+      // useful when debugging via Safari's remote Web Inspector than the
+      // generic message below, which is all a viewer needs to see.
+      console.error("NativePlayer.present failed:", err);
       setError("network");
     }
   };
@@ -108,9 +115,19 @@ export function NativeVideoPlayer({ itemId, title, channelName, thumbnail, autoP
       saveProgress(data.positionSeconds, data.positionSeconds > 0 ? data.positionSeconds + 1 : 0);
     });
 
+    // Fires when the asset itself fails to load (auth, deleted file,
+    // unsupported codec) - present() has already resolved by then since
+    // that only confirms the native player screen was shown, not that
+    // playback actually started successfully.
+    const errorSub = NativePlayer.addListener("playbackError", (data: NativePlayerErrorEvent) => {
+      console.error("NativePlayer playbackError:", data.message);
+      setError("network");
+    });
+
     return () => {
       timeUpdateSub.then((handle) => handle.remove());
       closedSub.then((handle) => handle.remove());
+      errorSub.then((handle) => handle.remove());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemId]);
@@ -142,6 +159,10 @@ export function NativeVideoPlayer({ itemId, title, channelName, thumbnail, autoP
         <BackgroundAudioButton
           active={backgroundPlaybackMode === "audio"}
           onActivate={() => selectBackgroundPlaybackMode("audio")}
+        />
+        <BackgroundPipButton
+          active={backgroundPlaybackMode === "pip"}
+          onActivate={() => selectBackgroundPlaybackMode("pip")}
         />
       </div>
     </div>

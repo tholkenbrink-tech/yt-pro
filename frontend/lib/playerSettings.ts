@@ -31,7 +31,7 @@ export const DEFAULT_PLAYER_SETTINGS: PlayerSettings = {
   markWatchedAt95: true,
   replayAfterFinish: true,
   showPipButton: true,
-  backgroundPlaybackMode: "pip",
+  backgroundPlaybackMode: "audio",
 };
 
 export function getPlayerSettings(): PlayerSettings {

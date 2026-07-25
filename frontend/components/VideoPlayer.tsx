@@ -65,9 +65,6 @@ function WebVideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }: Pro
   const [src, setSrc] = useState<string>("");
   const [isOfflineSource, setIsOfflineSource] = useState(false);
   const [isBuffering, setIsBuffering] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
   const offlineObjectUrlRef = useRef<string | null>(null);
   const [backgroundPlaybackMode, setBackgroundPlaybackMode] = useState<BackgroundPlaybackMode>(
     () => settingsRef.current.backgroundPlaybackMode
@@ -115,18 +112,23 @@ function WebVideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }: Pro
   useEffect(() => {
     let cancelled = false;
     // Optimistically start the network stream right away unless "Nur im
-    // WLAN streamen" is on and blocks it - the offline-copy check below is
-    // async (IndexedDB), and an offline copy always wins once found either
-    // way, so there's no point waiting for it before starting playback.
-    const streamingAllowed = shouldStream();
-    setSrc(streamingAllowed ? api.streamUrl(itemId) : "");
-    setError(streamingAllowed ? null : "wifi-required");
+    // WLAN streamen" is on and blocks it - the WLAN check and the
+    // offline-copy check below both run async in parallel (the former reads
+    // the native network status, the latter is IndexedDB), and an offline
+    // copy always wins once found either way, so there's no point waiting
+    // for either before starting the other.
     setIsOfflineSource(false);
     setIsBuffering(true);
     if (offlineObjectUrlRef.current) {
       URL.revokeObjectURL(offlineObjectUrlRef.current);
       offlineObjectUrlRef.current = null;
     }
+
+    shouldStream().then((streamingAllowed) => {
+      if (cancelled) return;
+      setSrc(streamingAllowed ? api.streamUrl(itemId) : "");
+      setError(streamingAllowed ? null : "wifi-required");
+    });
 
     getOfflineBlob(itemId)
       .then((blob) => {
@@ -474,42 +476,6 @@ function WebVideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }: Pro
     };
   }, [itemId, title, channelName, thumbnail, backgroundPlaybackMode]);
 
-  // Separate from the effect above on purpose - this only drives the custom
-  // scrim UI (play/pause icon, scrub bar) and must never interfere with the
-  // resume/background-audio/PiP/MediaSession wiring above it.
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    const onPlay = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
-    const onLoadedMetadata = () => setDuration(video.duration || 0);
-    const onTimeUpdate = () => setCurrentTime(video.currentTime);
-    video.addEventListener("play", onPlay);
-    video.addEventListener("pause", onPause);
-    video.addEventListener("loadedmetadata", onLoadedMetadata);
-    video.addEventListener("timeupdate", onTimeUpdate);
-    return () => {
-      video.removeEventListener("play", onPlay);
-      video.removeEventListener("pause", onPause);
-      video.removeEventListener("loadedmetadata", onLoadedMetadata);
-      video.removeEventListener("timeupdate", onTimeUpdate);
-    };
-  }, [itemId]);
-
-  const togglePlay = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    if (video.paused) video.play().catch(() => undefined);
-    else video.pause();
-  };
-
-  const seekTo = (seconds: number) => {
-    const video = videoRef.current;
-    if (!video) return;
-    video.currentTime = seconds;
-    setCurrentTime(seconds);
-  };
-
   const restartFromBeginning = async () => {
     setResumePosition(null);
     try {
@@ -528,7 +494,7 @@ function WebVideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }: Pro
           src={src || undefined}
           playsInline
           preload="metadata"
-          onClick={togglePlay}
+          controls
           className="aspect-video w-full"
         >
           Dein Browser unterstützt die Videowiedergabe nicht.
@@ -541,42 +507,6 @@ function WebVideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }: Pro
           >
             <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-white/30 border-t-white" />
           </div>
-        )}
-
-        {!isBuffering && !error && (
-          <>
-            <button
-              type="button"
-              aria-label="Weitere Optionen"
-              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-base text-white"
-            >
-              ⋯
-            </button>
-            <button
-              type="button"
-              onClick={togglePlay}
-              aria-label={isPlaying ? "Pausieren" : "Abspielen"}
-              className="absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-accent text-2xl text-white"
-            >
-              {isPlaying ? "❚❚" : "▶"}
-            </button>
-            <div className="absolute inset-x-3.5 bottom-3">
-              <input
-                type="range"
-                min={0}
-                max={duration || 0}
-                step={0.1}
-                value={Math.min(currentTime, duration || 0)}
-                onChange={(e) => seekTo(Number(e.target.value))}
-                aria-label="Position"
-                className="video-scrubber h-1 w-full appearance-none rounded-full bg-white/25 accent-[var(--color-accent)]"
-              />
-              <div className="mt-1 flex justify-between text-[10.5px] text-white/85">
-                <span>{formatDuration(Math.floor(currentTime))}</span>
-                <span>{formatDuration(Math.floor(duration))}</span>
-              </div>
-            </div>
-          </>
         )}
       </div>
 

@@ -23,7 +23,12 @@ import {
   stopTracking,
   useInAppDownloadProgress,
 } from "@/lib/activeDownloadsStore";
-import { cancelQueuedDownload, enqueueDownload, useDownloadQueueStatus } from "@/lib/downloadQueueStore";
+import {
+  cancelQueuedDownload,
+  cancelRunningDownload,
+  enqueueDownload,
+  useDownloadQueueStatus,
+} from "@/lib/downloadQueueStore";
 import { shouldDownloadToDevice, shouldStartDownload } from "@/lib/wifiGate";
 import { useToast } from "@/components/ToastProvider";
 
@@ -59,6 +64,7 @@ export default function VideoPlayerPage() {
   const [removingOffline, setRemovingOffline] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRemoveOfflineConfirm, setShowRemoveOfflineConfirm] = useState(false);
+  const [showCancelDownloadConfirm, setShowCancelDownloadConfirm] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [showDeviceInstructions, setShowDeviceInstructions] = useState(false);
   const [deviceDownloaded, setDeviceDownloaded] = useState(false);
@@ -166,35 +172,46 @@ export default function VideoPlayerPage() {
     }
   };
 
-  const startOfflineInApp = async () => {
+  const startOfflineInApp = async (signal: AbortSignal) => {
     startTracking(item.id);
     try {
-      await saveOfflineInApp(item, (pct) => setDownloadProgress(item.id, pct));
+      await saveOfflineInApp(item, (pct) => setDownloadProgress(item.id, pct), signal);
       setHasOfflineCopy(true);
       showToast("Offline in der App gespeichert");
-    } catch {
-      showToast("Offline-Speicherung fehlgeschlagen - evtl. zu wenig Speicherplatz");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        showToast("Download abgebrochen");
+      } else {
+        showToast("Offline-Speicherung fehlgeschlagen - evtl. zu wenig Speicherplatz");
+      }
     } finally {
       stopTracking(item.id);
     }
   };
 
-  const handleOfflineButtonClick = () => {
+  const handleOfflineButtonClick = async () => {
     if (hasOfflineCopy) {
       setShowRemoveOfflineConfirm(true);
+    } else if (queueStatus === "downloading") {
+      setShowCancelDownloadConfirm(true);
     } else if (queueStatus === "queued") {
       cancelQueuedDownload(item.id);
     } else if (queueStatus === "idle") {
-      if (!shouldStartDownload()) {
+      if (!(await shouldStartDownload())) {
         showToast("Download übersprungen (nicht im WLAN)");
         return;
       }
-      enqueueDownload(item.id, startOfflineInApp);
+      enqueueDownload(item.id, startOfflineInApp, { title: item.title, thumbnail: item.thumbnailPath });
     }
   };
 
-  const saveToDevice = () => {
-    if (!shouldDownloadToDevice()) {
+  const confirmCancelDownload = () => {
+    cancelRunningDownload(item.id);
+    setShowCancelDownloadConfirm(false);
+  };
+
+  const saveToDevice = async () => {
+    if (!(await shouldDownloadToDevice())) {
       showToast("Geräte-Download übersprungen (nicht im WLAN)");
       return;
     }
@@ -227,6 +244,10 @@ export default function VideoPlayerPage() {
     setBusy(true);
     try {
       await api.deleteHistoryItem(item.id);
+      if (hasOfflineCopy) {
+        await removeOffline(item.id);
+        setHasOfflineCopy(false);
+      }
       setShowDeleteConfirm(false);
       showToast("Datei von NAS gelöscht");
       router.push("/library");
@@ -276,8 +297,14 @@ export default function VideoPlayerPage() {
       <div className="mt-4 flex gap-2 rounded-2xl bg-surface-elevated p-1">
         <button
           type="button"
-          aria-label={hasOfflineCopy ? "Offline-Kopie in der App entfernen" : "In der App speichern"}
-          disabled={queueStatus === "downloading" || removingOffline}
+          aria-label={
+            queueStatus === "downloading"
+              ? "Download abbrechen"
+              : hasOfflineCopy
+                ? "Offline-Kopie in der App entfernen"
+                : "In der App speichern"
+          }
+          disabled={removingOffline}
           onClick={handleOfflineButtonClick}
           className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13px] font-semibold disabled:opacity-50 ${
             hasOfflineCopy ? "bg-success/15 text-success" : "text-text-secondary"
@@ -327,7 +354,7 @@ export default function VideoPlayerPage() {
       <ConfirmationDialog
         open={showDeleteConfirm}
         title="Datei von NAS löschen?"
-        description="Die Datei wird endgültig von der NAS entfernt und steht nicht mehr zum Download bereit."
+        description="Die Datei wird endgültig von der NAS entfernt und steht nicht mehr zum Download bereit. Eine in der App gespeicherte Offline-Kopie wird ebenfalls entfernt. Falls du sie zusätzlich auf dein Gerät heruntergeladen hast, bleibt diese davon unberührt."
         confirmLabel="Löschen"
         destructive
         busy={busy}
@@ -344,6 +371,16 @@ export default function VideoPlayerPage() {
         busy={removingOffline}
         onConfirm={removeOfflineCopy}
         onCancel={() => setShowRemoveOfflineConfirm(false)}
+      />
+
+      <ConfirmationDialog
+        open={showCancelDownloadConfirm}
+        title="Download abbrechen?"
+        description="Der laufende Download in die App wird abgebrochen. Bereits geladene Daten werden verworfen."
+        confirmLabel="Abbrechen"
+        destructive
+        onConfirm={confirmCancelDownload}
+        onCancel={() => setShowCancelDownloadConfirm(false)}
       />
 
       {showInstructions && (

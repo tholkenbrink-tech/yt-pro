@@ -3,6 +3,7 @@ import Capacitor
 import AVFoundation
 import AVKit
 import MediaPlayer
+import WebKit
 
 /// Bridges video playback to a native AVPlayerViewController instead of the
 /// web <video> element, only inside the iOS app shell. This is what gets us
@@ -47,6 +48,7 @@ public class NativePlayerPlugin: CAPPlugin, CAPBridgedPlugin, AVPlayerViewContro
     private var player: AVPlayer?
     private var playerViewController: ClosableAVPlayerViewController?
     private var timeObserverToken: Any?
+    private var statusObservation: NSKeyValueObservation?
     private var isEnteringPictureInPicture = false
     private var isDismissingProgrammatically = false
     private var didResolvePresent = false
@@ -62,6 +64,40 @@ public class NativePlayerPlugin: CAPPlugin, CAPBridgedPlugin, AVPlayerViewContro
         let startTime = call.getDouble("startTime") ?? 0
         let pip = call.getString("backgroundMode") == "pip"
 
+        // The stream URL is behind the same session-cookie auth as every
+        // other API call (see backend/app/core/deps.py) - the web <video>
+        // element gets that cookie for free because it shares the
+        // WKWebView's network stack, but AVPlayer/AVURLAsset uses a
+        // separate one (HTTPCookieStorage.shared) that never sees it
+        // otherwise. Without this, every stream request 401s and the video
+        // silently fails to load. Copying the WKWebView's cookies over
+        // before creating the asset is what makes this work at all.
+        WKWebsiteDataStore.default().httpCookieStore.getAllCookies { [weak self] cookies in
+            guard let self = self else { return }
+            for cookie in cookies {
+                HTTPCookieStorage.shared.setCookie(cookie)
+            }
+            self.presentPlayer(
+                url: url,
+                title: title,
+                artist: artist,
+                artworkUrl: artworkUrl,
+                startTime: startTime,
+                pip: pip,
+                call: call
+            )
+        }
+    }
+
+    private func presentPlayer(
+        url: URL,
+        title: String,
+        artist: String?,
+        artworkUrl: String?,
+        startTime: Double,
+        pip: Bool,
+        call: CAPPluginCall
+    ) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.teardownPlayer()
@@ -70,6 +106,17 @@ public class NativePlayerPlugin: CAPPlugin, CAPBridgedPlugin, AVPlayerViewContro
             let item = AVPlayerItem(url: url)
             let player = AVPlayer(playerItem: item)
             self.player = player
+
+            // Surfaces real load failures (e.g. still-bad auth, a deleted
+            // file, an unsupported codec) as a "playbackError" event instead
+            // of the player just sitting there silently - present() itself
+            // has already resolved by the time this can fire, since asset
+            // loading happens asynchronously after the item is created.
+            self.statusObservation = item.observe(\.status, options: [.new]) { [weak self] observedItem, _ in
+                guard observedItem.status == .failed else { return }
+                let message = observedItem.error?.localizedDescription ?? "Unknown playback error"
+                self?.notifyListeners("playbackError", data: ["message": message])
+            }
 
             let vc = ClosableAVPlayerViewController()
             vc.player = player
@@ -267,6 +314,8 @@ public class NativePlayerPlugin: CAPPlugin, CAPBridgedPlugin, AVPlayerViewContro
             player?.removeTimeObserver(token)
             timeObserverToken = nil
         }
+        statusObservation?.invalidate()
+        statusObservation = nil
         player?.pause()
         player = nil
         playerViewController = nil

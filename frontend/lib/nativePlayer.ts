@@ -11,6 +11,10 @@ export interface NativePlayerClosedEvent {
   positionSeconds: number;
 }
 
+export interface NativePlayerErrorEvent {
+  message: string;
+}
+
 export interface NativePlayerPresentOptions {
   url: string;
   title: string;
@@ -31,6 +35,10 @@ export interface NativePlayerPluginInterface {
   addListener(
     eventName: "closed",
     listenerFunc: (data: NativePlayerClosedEvent) => void
+  ): Promise<{ remove: () => void }>;
+  addListener(
+    eventName: "playbackError",
+    listenerFunc: (data: NativePlayerErrorEvent) => void
   ): Promise<{ remove: () => void }>;
 }
 

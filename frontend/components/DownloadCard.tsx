@@ -24,7 +24,12 @@ import {
   stopTracking,
   useInAppDownloadProgress,
 } from "@/lib/activeDownloadsStore";
-import { cancelQueuedDownload, enqueueDownload, useDownloadQueueStatus } from "@/lib/downloadQueueStore";
+import {
+  cancelQueuedDownload,
+  cancelRunningDownload,
+  enqueueDownload,
+  useDownloadQueueStatus,
+} from "@/lib/downloadQueueStore";
 import { shouldDownloadToDevice, shouldStartDownload } from "@/lib/wifiGate";
 
 interface Props {
@@ -37,6 +42,7 @@ export function DownloadCard({ item, onChanged }: Props) {
   const [showDeviceInstructions, setShowDeviceInstructions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRemoveOfflineConfirm, setShowRemoveOfflineConfirm] = useState(false);
+  const [showCancelDownloadConfirm, setShowCancelDownloadConfirm] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [offline, setOffline] = useState(false);
@@ -69,7 +75,7 @@ export function DownloadCard({ item, onChanged }: Props) {
     }
   };
 
-  const startOfflineInApp = async () => {
+  const startOfflineInApp = async (signal: AbortSignal) => {
     startTracking(item.id);
     try {
       await saveOfflineInApp(
@@ -82,33 +88,45 @@ export function DownloadCard({ item, onChanged }: Props) {
           fileSize: item.finalFileSize,
           thumbnailPath: item.thumbnail,
         },
-        (pct) => setDownloadProgress(item.id, pct)
+        (pct) => setDownloadProgress(item.id, pct),
+        signal
       );
       setOffline(true);
       showToast("Offline in der App gespeichert");
-    } catch {
-      showToast("Speichern fehlgeschlagen - evtl. zu wenig Speicherplatz");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        showToast("Download abgebrochen");
+      } else {
+        showToast("Speichern fehlgeschlagen - evtl. zu wenig Speicherplatz");
+      }
     } finally {
       stopTracking(item.id);
     }
   };
 
-  const handleOfflineButtonClick = () => {
+  const handleOfflineButtonClick = async () => {
     if (offline) {
       setShowRemoveOfflineConfirm(true);
+    } else if (queueStatus === "downloading") {
+      setShowCancelDownloadConfirm(true);
     } else if (queueStatus === "queued") {
       cancelQueuedDownload(item.id);
     } else if (queueStatus === "idle") {
-      if (!shouldStartDownload()) {
+      if (!(await shouldStartDownload())) {
         showToast("Download übersprungen (nicht im WLAN)");
         return;
       }
-      enqueueDownload(item.id, startOfflineInApp);
+      enqueueDownload(item.id, startOfflineInApp, { title: item.title, thumbnail: item.thumbnail });
     }
   };
 
-  const saveToDevice = () => {
-    if (!shouldDownloadToDevice()) {
+  const confirmCancelDownload = () => {
+    cancelRunningDownload(item.id);
+    setShowCancelDownloadConfirm(false);
+  };
+
+  const saveToDevice = async () => {
+    if (!(await shouldDownloadToDevice())) {
       showToast("Geräte-Download übersprungen (nicht im WLAN)");
       return;
     }
@@ -151,6 +169,10 @@ export function DownloadCard({ item, onChanged }: Props) {
     setBusy(true);
     try {
       await api.deleteHistoryItem(item.id);
+      if (offline) {
+        await removeOffline(item.id);
+        setOffline(false);
+      }
       setShowDeleteConfirm(false);
       showToast("Datei von NAS gelöscht");
       onChanged?.();
@@ -216,7 +238,7 @@ export function DownloadCard({ item, onChanged }: Props) {
           </p>
           <button
             type="button"
-            disabled={queueStatus === "downloading" || removingOffline}
+            disabled={removingOffline}
             onClick={() => {
               setMenuOpen(false);
               handleOfflineButtonClick();
@@ -224,11 +246,13 @@ export function DownloadCard({ item, onChanged }: Props) {
             className="flex min-h-11 items-center justify-between rounded-xl px-3 text-left text-sm font-medium text-text-primary disabled:opacity-50"
           >
             <span>
-              {queueStatus === "queued"
-                ? "In Warteschlange - abbrechen"
-                : offline
-                  ? "In der App - entfernen"
-                  : "In der App speichern"}
+              {queueStatus === "downloading"
+                ? "Download abbrechen"
+                : queueStatus === "queued"
+                  ? "In Warteschlange - abbrechen"
+                  : offline
+                    ? "In der App - entfernen"
+                    : "In der App speichern"}
             </span>
             {savingInApp && (
               <span className="text-xs text-text-muted">{saveProgressPct !== null ? `${saveProgressPct}%` : "…"}</span>
@@ -290,7 +314,7 @@ export function DownloadCard({ item, onChanged }: Props) {
       <ConfirmationDialog
         open={showDeleteConfirm}
         title="Datei von NAS löschen?"
-        description="Die Datei wird endgültig von der NAS entfernt und steht nicht mehr zum Download bereit."
+        description="Die Datei wird endgültig von der NAS entfernt und steht nicht mehr zum Download bereit. Eine in der App gespeicherte Offline-Kopie wird ebenfalls entfernt. Falls du sie zusätzlich auf dein Gerät heruntergeladen hast, bleibt diese davon unberührt."
         confirmLabel="Löschen"
         destructive
         busy={busy}
@@ -307,6 +331,16 @@ export function DownloadCard({ item, onChanged }: Props) {
         busy={removingOffline}
         onConfirm={removeOfflineCopy}
         onCancel={() => setShowRemoveOfflineConfirm(false)}
+      />
+
+      <ConfirmationDialog
+        open={showCancelDownloadConfirm}
+        title="Download abbrechen?"
+        description="Der laufende Download in die App wird abgebrochen. Bereits geladene Daten werden verworfen."
+        confirmLabel="Abbrechen"
+        destructive
+        onConfirm={confirmCancelDownload}
+        onCancel={() => setShowCancelDownloadConfirm(false)}
       />
     </div>
   );

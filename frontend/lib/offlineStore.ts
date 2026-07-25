@@ -106,9 +106,10 @@ export function triggerDeviceDownload(itemId: string): void {
  * isn't gated by the WLAN-only device-download setting. */
 export async function saveOfflineInApp(
   item: OfflineSourceItem,
-  onProgress?: (pct: number) => void
+  onProgress?: (pct: number) => void,
+  signal?: AbortSignal
 ): Promise<void> {
-  const res = await fetch(api.streamUrl(item.id), { credentials: "include" });
+  const res = await fetch(api.streamUrl(item.id), { credentials: "include", signal });
   if (!res.ok) throw new Error(`Stream fetch failed: ${res.status}`);
   const blob = await readBlobWithProgress(res, onProgress);
 

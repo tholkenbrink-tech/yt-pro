@@ -7,6 +7,7 @@ import type { Job } from "@/lib/types";
 import { isActiveStatus, jobDisplayName, statusLabel, statusTone, type StatusTone } from "@/lib/statusLabels";
 import { Skeleton } from "@/components/Skeleton";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
+import { InAppDownloadsPanel } from "@/components/InAppDownloadsPanel";
 
 const TONE_BORDER: Record<StatusTone, string> = {
   success: "border-success",
@@ -53,7 +54,10 @@ function TimelineRow({ job, trailing }: { job: Job; trailing?: React.ReactNode }
   );
 }
 
+type Tab = "jobs" | "inapp";
+
 export default function ActivityPage() {
+  const [tab, setTab] = useState<Tab>("jobs");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +96,30 @@ export default function ActivityPage() {
     <main className="mx-auto max-w-lg px-4 pb-4 pt-6">
       <h1 className="mb-4 text-page-title">Aktivität</h1>
 
-      {loading && (
+      <div className="mb-5 flex gap-2 rounded-2xl bg-surface-elevated p-1">
+        <button
+          type="button"
+          onClick={() => setTab("jobs")}
+          className={`flex min-h-9 flex-1 items-center justify-center rounded-xl text-[13px] font-semibold ${
+            tab === "jobs" ? "bg-accent text-white" : "text-text-secondary"
+          }`}
+        >
+          Vorgänge
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("inapp")}
+          className={`flex min-h-9 flex-1 items-center justify-center rounded-xl text-[13px] font-semibold ${
+            tab === "inapp" ? "bg-accent text-white" : "text-text-secondary"
+          }`}
+        >
+          In-App-Downloads
+        </button>
+      </div>
+
+      {tab === "inapp" && <InAppDownloadsPanel />}
+
+      {tab === "jobs" && loading && (
         <ul className="space-y-2" aria-hidden="true">
           {[0, 1, 2].map((i) => (
             <li key={i} className="flex items-center gap-3 rounded-r-2xl border-l-[3px] border-border bg-surface p-3">
@@ -105,9 +132,9 @@ export default function ActivityPage() {
           ))}
         </ul>
       )}
-      {error && <p className="text-sm text-error">{error}</p>}
+      {tab === "jobs" && error && <p className="text-sm text-error">{error}</p>}
 
-      {!loading && jobs.length === 0 && !error && (
+      {tab === "jobs" && !loading && jobs.length === 0 && !error && (
         <div>
           <p className="text-sm font-medium text-text-primary">Keine aktiven Downloads</p>
           <p className="mt-1 text-sm text-text-muted">
@@ -116,7 +143,7 @@ export default function ActivityPage() {
         </div>
       )}
 
-      {active.length > 0 && (
+      {tab === "jobs" && active.length > 0 && (
         <section className="mb-5" aria-live="polite">
           <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-text-muted">Laufend</h2>
           <ul className="space-y-2">
@@ -129,7 +156,7 @@ export default function ActivityPage() {
         </section>
       )}
 
-      {finished.length > 0 && (
+      {tab === "jobs" && finished.length > 0 && (
         <section>
           <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-text-muted">
             Abgeschlossen / Fehlgeschlagen
