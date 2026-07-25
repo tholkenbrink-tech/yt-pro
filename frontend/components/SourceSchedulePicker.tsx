@@ -57,7 +57,7 @@ export function SourceSchedulePicker({
               onScheduleChange("cron");
             }}
             placeholder="0 */6 * * *"
-            className="min-h-11 w-full rounded-md border border-border bg-surface p-2 text-sm text-text-primary"
+            className="min-h-11 w-full rounded-md border border-border bg-surface p-2 text-base text-text-primary"
           />
         </div>
       </details>

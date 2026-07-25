@@ -265,6 +265,28 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
         >
           ▶
         </Link>
+        {!offline && (
+          <button
+            type="button"
+            aria-label={
+              queueStatus === "downloading"
+                ? "Download abbrechen"
+                : queueStatus === "queued"
+                  ? "In Warteschlange - abbrechen"
+                  : "In der App speichern"
+            }
+            onClick={handleOfflineButtonClick}
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-border text-sm text-text-muted"
+          >
+            {savingInApp ? (
+              <span className="text-[10px] font-medium">
+                {saveProgressPct !== null ? `${saveProgressPct}%` : "…"}
+              </span>
+            ) : (
+              "⬇"
+            )}
+          </button>
+        )}
         <button
           type="button"
           aria-label="Weitere Aktionen"

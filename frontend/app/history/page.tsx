@@ -31,11 +31,21 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const isSearching = Boolean(query.trim());
+
   const load = () => {
     setLoading(true);
     setError(null);
+    // A search term should discover matches everywhere, not just within the
+    // currently selected user/status filter - so widen to "everyone" and
+    // drop the status filter whenever searching.
     api
-      .history({ query: query || undefined, status: status || undefined, sort, userId })
+      .history({
+        query: query || undefined,
+        status: isSearching ? undefined : status || undefined,
+        sort,
+        userId: isSearching ? "all" : userId,
+      })
       .then(setItems)
       .catch(() => setError("Verlauf konnte nicht geladen werden."))
       .finally(() => setLoading(false));
@@ -77,6 +87,12 @@ export default function HistoryPage() {
           Suchen
         </button>
       </div>
+
+      {isSearching && (
+        <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+          Suche über alle Nutzer und Filter hinweg
+        </p>
+      )}
 
       <div className="mb-3 flex flex-wrap gap-2">
         {STATUS_FILTERS.map((f) => (
@@ -143,7 +159,7 @@ export default function HistoryPage() {
             </div>
             <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
               {formatDate(item.createdAt)}
-              {(userId === "all" || (userId && userId !== selfId)) && item.ownerName
+              {(isSearching || userId === "all" || (userId && userId !== selfId)) && item.ownerName
                 ? ` · 👤 ${item.ownerName}`
                 : ""}
             </p>

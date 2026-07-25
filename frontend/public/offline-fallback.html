@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>yt-pro</title>
+    <style>
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: #0a0a0f;
+        color: #f5f5f7;
+        font-family: -apple-system, "SF Pro Text", sans-serif;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        text-align: center;
+      }
+      main {
+        max-width: 360px;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin-bottom: 8px;
+      }
+      p {
+        font-size: 0.9375rem;
+        color: #a1a1aa;
+        line-height: 1.4;
+      }
+      button {
+        margin-top: 20px;
+        min-height: 44px;
+        padding: 0 20px;
+        border-radius: 12px;
+        border: none;
+        background: #4f46e5;
+        color: white;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Bundled into the native app (see capacitor.config.ts server.errorPath)
+         as the very last resort: only shown when the app has never
+         successfully loaded app.yt-pro.de at all yet, so there is nothing
+         cached to fall back to. Once the app has loaded successfully at
+         least once online, the web app's own service worker + offline
+         video store take over for subsequent offline use instead of this
+         page. -->
+    <main>
+      <h1>Keine Verbindung</h1>
+      <p>
+        yt-pro braucht beim allerersten Start einmal eine Internetverbindung.
+        Danach funktionieren bereits heruntergeladene Videos auch offline.
+      </p>
+      <button onclick="location.reload()">Erneut versuchen</button>
+    </main>
+  </body>
+</html>

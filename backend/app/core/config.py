@@ -31,7 +31,11 @@ class Settings(BaseSettings):
     COOKIE_DIR: str = "/data/cookies"
     DATABASE_DIR: str = "/data/database"
 
-    SESSION_TTL_HOURS: int = 24 * 30
+    # Personal/family app used offline (airplane mode, spotty connectivity)
+    # for extended stretches - a short-lived session would force a re-login
+    # exactly when there's no connectivity to do it. 90 days gives comfortable
+    # headroom over "days or weeks" of not opening the app.
+    SESSION_TTL_HOURS: int = 24 * 90
 
     @property
     def cors_origins_list(self) -> list[str]:

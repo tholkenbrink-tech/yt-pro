@@ -176,7 +176,7 @@ export default function NewSourcePage() {
                 min={0}
                 value={maxNewItems}
                 onChange={(e) => setMaxNewItems(e.target.value === "" ? "" : Number(e.target.value))}
-                className="min-h-11 w-full rounded-md border border-border bg-surface p-2 text-sm text-text-primary"
+                className="min-h-11 w-full rounded-md border border-border bg-surface p-2 text-base text-text-primary"
               />
             </div>
             <div>
@@ -189,7 +189,7 @@ export default function NewSourcePage() {
                 min={0}
                 value={maxBytes}
                 onChange={(e) => setMaxBytes(e.target.value === "" ? "" : Number(e.target.value))}
-                className="min-h-11 w-full rounded-md border border-border bg-surface p-2 text-sm text-text-primary"
+                className="min-h-11 w-full rounded-md border border-border bg-surface p-2 text-base text-text-primary"
               />
             </div>
             <div>
@@ -204,7 +204,7 @@ export default function NewSourcePage() {
                 onChange={(e) =>
                   setMaxDurationMinutes(e.target.value === "" ? "" : Number(e.target.value))
                 }
-                className="min-h-11 w-full rounded-md border border-border bg-surface p-2 text-sm text-text-primary"
+                className="min-h-11 w-full rounded-md border border-border bg-surface p-2 text-base text-text-primary"
               />
             </div>
             <div>
@@ -216,7 +216,7 @@ export default function NewSourcePage() {
                 type="date"
                 value={onlyAfter}
                 onChange={(e) => setOnlyAfter(e.target.value)}
-                className="min-h-11 w-full rounded-md border border-border bg-surface p-2 text-sm text-text-primary"
+                className="min-h-11 w-full rounded-md border border-border bg-surface p-2 text-base text-text-primary"
               />
             </div>
           </div>

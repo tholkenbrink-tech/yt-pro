@@ -16,6 +16,12 @@ const config: CapacitorConfig = {
     // lock-screen controls) need a new App Store/ad-hoc build.
     url: "https://app.yt-pro.de",
     cleartext: false,
+    // Shown instead of a blank/black WKWebView when a navigation fails
+    // outright (e.g. cold launch with zero connectivity, before the app
+    // has ever loaded successfully once) - see public/offline-fallback.html.
+    // Once the app has loaded at least once online, the web app's own
+    // service worker + offline video store handle subsequent offline use.
+    errorPath: "offline-fallback.html",
   },
 };
 

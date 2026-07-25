@@ -127,7 +127,7 @@ export default function VideoPlayerPage() {
 
   if (item === undefined) {
     return (
-      <main className="mx-auto max-w-2xl pl-[calc(1.25rem+env(safe-area-inset-left))] pr-[calc(1.25rem+env(safe-area-inset-right))] pb-4 pt-6">
+      <main className="mx-auto max-w-2xl pl-[calc(1rem+env(safe-area-inset-left))] pr-[calc(1rem+env(safe-area-inset-right))] pb-4 pt-6">
         <div className="mx-auto max-w-2xl">
           <Skeleton className="aspect-video w-full" />
         </div>
@@ -147,7 +147,7 @@ export default function VideoPlayerPage() {
 
   if (!item) {
     return (
-      <main className="mx-auto max-w-2xl px-5 pb-4 pt-6">
+      <main className="mx-auto max-w-2xl px-4 pb-4 pt-6">
         <h1 className="mb-2 text-section-title">
           {error === "offline" ? "Keine Verbindung" : "Datei nicht mehr verfügbar"}
         </h1>
@@ -257,7 +257,7 @@ export default function VideoPlayerPage() {
   };
 
   return (
-    <main className="mx-auto max-w-2xl pl-[calc(1.25rem+env(safe-area-inset-left))] pr-[calc(1.25rem+env(safe-area-inset-right))] pb-4 pt-6">
+    <main className="mx-auto max-w-2xl pl-[calc(1rem+env(safe-area-inset-left))] pr-[calc(1rem+env(safe-area-inset-right))] pb-4 pt-6">
       <div className="mx-auto max-w-2xl">
         <VideoPlayer
           itemId={item.id}

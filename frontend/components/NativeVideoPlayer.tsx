@@ -51,6 +51,7 @@ export function NativeVideoPlayer({ itemId, title, channelName, thumbnail, autoP
   const lastSavedAtRef = useRef(0);
   const markedWatchedRef = useRef(false);
   const settingsRef = useRef(getPlayerSettings());
+  const placeholderRef = useRef<HTMLButtonElement>(null);
   const [backgroundPlaybackMode, setBackgroundPlaybackModeState] = useState<BackgroundPlaybackMode>(
     () => settingsRef.current.backgroundPlaybackMode
   );
@@ -58,6 +59,28 @@ export function NativeVideoPlayer({ itemId, title, channelName, thumbnail, autoP
   const saveProgress = (positionSeconds: number, durationSeconds: number) => {
     if (!durationSeconds || Number.isNaN(durationSeconds)) return;
     api.saveProgress(itemId, { positionSeconds, durationSeconds, playbackRate: 1 }).catch(() => undefined);
+  };
+
+  // Keeps the native player's frame matching the placeholder div's actual
+  // on-screen bounds - called on mount, resize/orientation change, scroll,
+  // and layout changes (e.g. a sidebar appearing in landscape). Without
+  // this the video was pinned at a fixed guessed position, which broke in
+  // landscape/sidebar layouts and could sit on top of (and swallow taps
+  // meant for) the buttons below it.
+  const syncFrame = () => {
+    if (!isPresentedRef.current || !placeholderRef.current) return;
+    const rect = placeholderRef.current.getBoundingClientRect();
+    // A mid-transition/zero-size read (e.g. the observer's own initial
+    // callback firing before layout has settled) isn't worth forwarding -
+    // the native side would just ignore it too (see NativePlayerPlugin's
+    // updateFrame), but skipping it here also avoids the extra bridge call.
+    if (rect.width <= 0 || rect.height <= 0) return;
+    NativePlayer.updateFrame({
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+    }).catch(() => undefined);
   };
 
   const present = async () => {
@@ -72,6 +95,7 @@ export function NativeVideoPlayer({ itemId, title, channelName, thumbnail, autoP
         progress && progress.positionSeconds > RESUME_THRESHOLD_SECONDS && !progress.completed
           ? progress.positionSeconds
           : 0;
+      const rect = placeholderRef.current?.getBoundingClientRect();
       await NativePlayer.present({
         url: api.streamUrl(itemId),
         title: title || "Video",
@@ -79,6 +103,10 @@ export function NativeVideoPlayer({ itemId, title, channelName, thumbnail, autoP
         artworkUrl: thumbnail,
         startTime,
         backgroundMode: backgroundPlaybackMode,
+        x: rect?.x ?? 0,
+        y: rect?.y ?? 0,
+        width: rect?.width ?? 0,
+        height: rect?.height ?? 0,
       });
       isPresentedRef.current = true;
       setIsPresented(true);
@@ -129,6 +157,30 @@ export function NativeVideoPlayer({ itemId, title, channelName, thumbnail, autoP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemId]);
 
+  useEffect(() => {
+    let rafId: number | null = null;
+    const scheduleSync = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        syncFrame();
+      });
+    };
+
+    window.addEventListener("resize", scheduleSync);
+    window.addEventListener("scroll", scheduleSync, { passive: true });
+    const resizeObserver = new ResizeObserver(scheduleSync);
+    if (placeholderRef.current) resizeObserver.observe(placeholderRef.current);
+
+    return () => {
+      window.removeEventListener("resize", scheduleSync);
+      window.removeEventListener("scroll", scheduleSync);
+      resizeObserver.disconnect();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemId]);
+
   // The native player has no "Done" button to dismiss itself (see the
   // module comment) - navigating away from this page has to explicitly
   // tear it down, or it would keep floating on top of whatever screen the
@@ -155,6 +207,7 @@ export function NativeVideoPlayer({ itemId, title, channelName, thumbnail, autoP
   return (
     <div className="relative">
       <button
+        ref={placeholderRef}
         type="button"
         onClick={present}
         className="flex aspect-video w-full items-center justify-center rounded-2xl bg-black text-white"

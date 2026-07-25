@@ -59,10 +59,29 @@ def _find_already_downloaded(db: DBSession, youtube_ids: list[str]) -> set[str]:
     return wanted & existing
 
 
+# Fixed display order for the download flow's quality picker - matches the
+# static pre-analysis list in the frontend (frontend/app/download/page.tsx)
+# so the options don't visibly reorder once analyze() resolves.
+_QUALITY_DISPLAY_ORDER = ["original", "480p", "720p", "1080p"]
+
+
 def get_available_qualities(db: DBSession) -> list[QualityOption]:
     profiles = db.execute(
-        select(DownloadProfile).where(DownloadProfile.enabled.is_(True))
+        select(DownloadProfile).where(
+            DownloadProfile.enabled.is_(True),
+            # audioOnly profiles (e.g. "audio") back a different feature and
+            # were never offered as a choice in this selector - excluded so
+            # analyze() doesn't surface an option the pre-analysis screen
+            # never showed.
+            DownloadProfile.audioOnly.is_(False),
+        )
     ).scalars().all()
+    profiles = sorted(
+        profiles,
+        key=lambda p: _QUALITY_DISPLAY_ORDER.index(p.name)
+        if p.name in _QUALITY_DISPLAY_ORDER
+        else len(_QUALITY_DISPLAY_ORDER),
+    )
     return [
         QualityOption(name=p.name, audioOnly=p.audioOnly, maximumResolution=p.maximumResolution)
         for p in profiles

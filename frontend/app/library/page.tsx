@@ -136,8 +136,20 @@ export default function LibraryPage() {
     // browser's local bookkeeping) - the server has no idea about either,
     // so fetch unfiltered and filter the result client-side instead.
     const isClientOnlyFilter = query.status === "saved-in-app" || query.status === "saved-on-device";
+    // A search term should discover matches everywhere, not just within the
+    // currently selected user/status/origin/quality filter - so widen to
+    // "everyone" and drop the other narrowing filters whenever searching.
+    const isSearching = Boolean(search.trim());
     api
-      .library({ ...query, status: isClientOnlyFilter ? undefined : query.status, query: search || undefined })
+      .library({
+        ...query,
+        status: isSearching || isClientOnlyFilter ? undefined : query.status,
+        origin: isSearching ? undefined : query.origin,
+        sourceId: isSearching ? undefined : query.sourceId,
+        quality: isSearching ? undefined : query.quality,
+        userId: isSearching ? "all" : query.userId,
+        query: search || undefined,
+      })
       .then(async (fetched) => {
         if (query.status === "saved-in-app") {
           const offline = await listOfflineMeta();
@@ -194,6 +206,7 @@ export default function LibraryPage() {
     [items]
   );
 
+  const isSearching = Boolean(search.trim());
   const sort = query.sort ?? "date_desc";
   const status = query.status ?? "";
   const hasActiveFilters = sort !== "date_desc" || status !== "" || (query.userId ?? undefined) !== selfId;
@@ -266,13 +279,19 @@ export default function LibraryPage() {
         })}
       </div>
 
-      <button
-        type="button"
-        onClick={() => setFilterSheetOpen(true)}
-        className="mb-4 -mt-2 block text-left text-meta text-text-muted"
-      >
-        {summaryLine}
-      </button>
+      {isSearching ? (
+        <p className="mb-4 -mt-2 text-meta text-text-muted">
+          Suche über alle Nutzer und Filter hinweg
+        </p>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setFilterSheetOpen(true)}
+          className="mb-4 -mt-2 block text-left text-meta text-text-muted"
+        >
+          {summaryLine}
+        </button>
+      )}
 
       {loading && (
         <div className="grid grid-cols-1 gap-1 md:grid-cols-2" aria-hidden="true">
@@ -321,7 +340,7 @@ export default function LibraryPage() {
           <h2 className="mb-3 text-card-title">📁 {activeGroup.label}</h2>
           <div className="grid grid-cols-1 gap-1 md:grid-cols-2">
             {activeGroup.items.map((item) => (
-              <MediaCard key={item.id} item={item} onChanged={load} showOwner={query.userId === "all" || (Boolean(query.userId) && query.userId !== selfId)} />
+              <MediaCard key={item.id} item={item} onChanged={load} showOwner={isSearching || query.userId === "all" || (Boolean(query.userId) && query.userId !== selfId)} />
             ))}
           </div>
         </>
@@ -377,7 +396,7 @@ export default function LibraryPage() {
               <FolderCard key={group.key} group={group} onOpen={() => setOpenFolder(group.key)} />
             ))}
             {standalone.map((item) => (
-              <MediaCard key={item.id} item={item} onChanged={load} showOwner={query.userId === "all" || (Boolean(query.userId) && query.userId !== selfId)} />
+              <MediaCard key={item.id} item={item} onChanged={load} showOwner={isSearching || query.userId === "all" || (Boolean(query.userId) && query.userId !== selfId)} />
             ))}
           </div>
         </>
