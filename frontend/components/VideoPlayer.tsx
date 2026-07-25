@@ -7,7 +7,9 @@ import { type BackgroundPlaybackMode, getPlayerSettings, setPlayerSettings } fro
 import { getOfflineBlob } from "@/lib/offlineStore";
 import { useDownloadQueueStatus } from "@/lib/downloadQueueStore";
 import { shouldStream } from "@/lib/wifiGate";
+import { isNativeIOS } from "@/lib/nativePlayer";
 import { BackgroundAudioButton } from "./BackgroundAudioButton";
+import { NativeVideoPlayer } from "./NativeVideoPlayer";
 import { PictureInPictureButton } from "./PictureInPictureButton";
 import { ResumePlaybackPrompt } from "./ResumePlaybackPrompt";
 
@@ -24,7 +26,32 @@ interface Props {
   autoPlay?: boolean;
 }
 
-export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }: Props) {
+/**
+ * Inside the iOS native shell (see ios/App/App/NativePlayerPlugin.swift),
+ * real Picture-in-Picture and reliable background audio require an actual
+ * AVPlayerViewController - the web <video> element (and the workarounds
+ * below it, like the shadow-audio element) is a WebKit-imposed ceiling that
+ * native AVKit doesn't have. Everywhere else (desktop/mobile browsers, the
+ * desktop PWA bookmark), the web implementation is unaffected and unchanged.
+ */
+export function VideoPlayer(props: Props) {
+  // Checked after mount, not during render: isNativeIOS() would otherwise
+  // disagree between the server-rendered pass (no `window`, always "web")
+  // and the client's first render inside the native shell, causing a
+  // hydration mismatch. Starting as "web" and swapping in an effect avoids
+  // that at the cost of a brief flash of the web player on native launch.
+  const [isNative, setIsNative] = useState(false);
+  useEffect(() => {
+    setIsNative(isNativeIOS());
+  }, []);
+
+  if (isNative) {
+    return <NativeVideoPlayer {...props} />;
+  }
+  return <WebVideoPlayer {...props} />;
+}
+
+function WebVideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const shadowAudioRef = useRef<HTMLAudioElement>(null);
   const isShadowActiveRef = useRef(false);
@@ -38,6 +65,9 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
   const [src, setSrc] = useState<string>("");
   const [isOfflineSource, setIsOfflineSource] = useState(false);
   const [isBuffering, setIsBuffering] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
   const offlineObjectUrlRef = useRef<string | null>(null);
   const [backgroundPlaybackMode, setBackgroundPlaybackMode] = useState<BackgroundPlaybackMode>(
     () => settingsRef.current.backgroundPlaybackMode
@@ -396,11 +426,24 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
     // the autoPictureInPicture attribute alone. Only registered while "pip"
     // is the chosen leave-the-app mode, so switching to "audio" doesn't
     // fight the shadow-audio handoff above.
+    //
+    // "enterpictureinpicture" is a Chrome-only action name, not part of the
+    // set every WebKit build recognizes - unlike Chrome, Safari throws a
+    // TypeError for unsupported MediaSessionAction values instead of
+    // ignoring them, and does so inconsistently across iOS/iPadOS/macOS
+    // point releases. That throw is uncaught here (this runs outside any
+    // event handler Safari would otherwise swallow it in), which crashed
+    // the whole client-side render on iPhone/iPad. Must be try/caught.
     if (backgroundPlaybackMode === "pip") {
-      // Not yet in TS's lib.dom MediaSessionAction union.
-      navigator.mediaSession.setActionHandler("enterpictureinpicture" as MediaSessionAction, () => {
-        video.requestPictureInPicture().catch(() => undefined);
-      });
+      try {
+        // Not yet in TS's lib.dom MediaSessionAction union.
+        navigator.mediaSession.setActionHandler("enterpictureinpicture" as MediaSessionAction, () => {
+          video.requestPictureInPicture().catch(() => undefined);
+        });
+      } catch {
+        /* unsupported action name on this browser - autoPictureInPicture
+           attribute still covers auto-enter where it's honored */
+      }
     }
 
     const updatePlaybackState = () => {
@@ -423,9 +466,49 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
       navigator.mediaSession.setActionHandler("seekbackward", null);
       navigator.mediaSession.setActionHandler("seekforward", null);
       navigator.mediaSession.setActionHandler("seekto", null);
-      navigator.mediaSession.setActionHandler("enterpictureinpicture" as MediaSessionAction, null);
+      try {
+        navigator.mediaSession.setActionHandler("enterpictureinpicture" as MediaSessionAction, null);
+      } catch {
+        /* see try/catch above - unsupported action name on this browser */
+      }
     };
   }, [itemId, title, channelName, thumbnail, backgroundPlaybackMode]);
+
+  // Separate from the effect above on purpose - this only drives the custom
+  // scrim UI (play/pause icon, scrub bar) and must never interfere with the
+  // resume/background-audio/PiP/MediaSession wiring above it.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+    const onLoadedMetadata = () => setDuration(video.duration || 0);
+    const onTimeUpdate = () => setCurrentTime(video.currentTime);
+    video.addEventListener("play", onPlay);
+    video.addEventListener("pause", onPause);
+    video.addEventListener("loadedmetadata", onLoadedMetadata);
+    video.addEventListener("timeupdate", onTimeUpdate);
+    return () => {
+      video.removeEventListener("play", onPlay);
+      video.removeEventListener("pause", onPause);
+      video.removeEventListener("loadedmetadata", onLoadedMetadata);
+      video.removeEventListener("timeupdate", onTimeUpdate);
+    };
+  }, [itemId]);
+
+  const togglePlay = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) video.play().catch(() => undefined);
+    else video.pause();
+  };
+
+  const seekTo = (seconds: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.currentTime = seconds;
+    setCurrentTime(seconds);
+  };
 
   const restartFromBeginning = async () => {
     setResumePosition(null);
@@ -439,25 +522,63 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
 
   return (
     <div className="relative">
-      <video
-        ref={videoRef}
-        src={src || undefined}
-        controls
-        playsInline
-        preload="metadata"
-        className="aspect-video w-full rounded-md bg-black"
-      >
-        Dein Browser unterstützt die Videowiedergabe nicht.
-      </video>
-
-      {isBuffering && !error && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-md bg-black/20"
+      <div className="relative overflow-hidden rounded-2xl bg-black">
+        <video
+          ref={videoRef}
+          src={src || undefined}
+          playsInline
+          preload="metadata"
+          onClick={togglePlay}
+          className="aspect-video w-full"
         >
-          <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-white/30 border-t-white" />
-        </div>
-      )}
+          Dein Browser unterstützt die Videowiedergabe nicht.
+        </video>
+
+        {isBuffering && !error && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20"
+          >
+            <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-white/30 border-t-white" />
+          </div>
+        )}
+
+        {!isBuffering && !error && (
+          <>
+            <button
+              type="button"
+              aria-label="Weitere Optionen"
+              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-base text-white"
+            >
+              ⋯
+            </button>
+            <button
+              type="button"
+              onClick={togglePlay}
+              aria-label={isPlaying ? "Pausieren" : "Abspielen"}
+              className="absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-accent text-2xl text-white"
+            >
+              {isPlaying ? "❚❚" : "▶"}
+            </button>
+            <div className="absolute inset-x-3.5 bottom-3">
+              <input
+                type="range"
+                min={0}
+                max={duration || 0}
+                step={0.1}
+                value={Math.min(currentTime, duration || 0)}
+                onChange={(e) => seekTo(Number(e.target.value))}
+                aria-label="Position"
+                className="video-scrubber h-1 w-full appearance-none rounded-full bg-white/25 accent-[var(--color-accent)]"
+              />
+              <div className="mt-1 flex justify-between text-[10.5px] text-white/85">
+                <span>{formatDuration(Math.floor(currentTime))}</span>
+                <span>{formatDuration(Math.floor(duration))}</span>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
 
       {/* Hidden stand-in for the audio track while backgrounded on
           platforms (iOS Safari) that suspend a <video> element's audio the
@@ -473,7 +594,7 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
       )}
 
       {error && (
-        <div className="mt-2 rounded-md bg-error/10 p-3 text-sm text-error">
+        <div className="mt-2 rounded-xl bg-error/10 p-3 text-sm text-error">
           <p className="font-medium">
             {error === "wifi-required"
               ? "Streaming nur im WLAN erlaubt"
@@ -489,27 +610,28 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
         </div>
       )}
 
-      <div className="mt-2 flex items-center justify-between gap-2">
-        {showRestartButton && (
+      {showRestartButton && (
+        <div className="mt-2">
           <ResumePlaybackPrompt
             positionLabel={resumePosition !== null ? formatDuration(resumePosition) : null}
             onRestart={restartFromBeginning}
           />
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          <BackgroundAudioButton
-            active={backgroundPlaybackMode === "audio"}
-            onActivate={() => selectBackgroundPlaybackMode("audio")}
-          />
-          {settingsRef.current.showPipButton && (
-            <PictureInPictureButton
-              videoRef={videoRef}
-              active={backgroundPlaybackMode === "pip"}
-              onActivate={() => selectBackgroundPlaybackMode("pip")}
-              onDeactivate={() => selectBackgroundPlaybackMode("audio")}
-            />
-          )}
         </div>
+      )}
+
+      <div className="mt-3.5 flex gap-2">
+        <BackgroundAudioButton
+          active={backgroundPlaybackMode === "audio"}
+          onActivate={() => selectBackgroundPlaybackMode("audio")}
+        />
+        {settingsRef.current.showPipButton && (
+          <PictureInPictureButton
+            videoRef={videoRef}
+            active={backgroundPlaybackMode === "pip"}
+            onActivate={() => selectBackgroundPlaybackMode("pip")}
+            onDeactivate={() => selectBackgroundPlaybackMode("audio")}
+          />
+        )}
       </div>
     </div>
   );
