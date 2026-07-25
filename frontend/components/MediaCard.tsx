@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { api } from "@/lib/api";
@@ -26,7 +26,7 @@ import {
   useInAppDownloadProgress,
 } from "@/lib/activeDownloadsStore";
 import { cancelQueuedDownload, enqueueDownload, useDownloadQueueStatus } from "@/lib/downloadQueueStore";
-import { shouldDownloadToDevice } from "@/lib/wifiGate";
+import { shouldDownloadToDevice, shouldStartDownload } from "@/lib/wifiGate";
 
 interface Props {
   item: LibraryItem;
@@ -36,7 +36,7 @@ interface Props {
   showOwner?: boolean;
 }
 
-export function MediaCard({ item, onChanged, showOwner }: Props) {
+export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }: Props) {
   const [busy, setBusy] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRemoveOfflineConfirm, setShowRemoveOfflineConfirm] = useState(false);
@@ -95,6 +95,10 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
     } else if (queueStatus === "queued") {
       cancelQueuedDownload(item.id);
     } else if (queueStatus === "idle") {
+      if (!shouldStartDownload()) {
+        showToast("Download übersprungen (nicht im WLAN)");
+        return;
+      }
       enqueueDownload(item.id, startOfflineInApp);
     }
   };
@@ -295,4 +299,4 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
       )}
     </div>
   );
-}
+});

@@ -21,6 +21,14 @@ export interface DownloadSettings {
    * Files/other apps) - never blocks the in-app offline copy, which never
    * leaves the app's own storage. See lib/wifiGate.ts. */
   wifiOnlyDeviceDownload: boolean;
+  /** Gates starting the in-app offline save (the actual network fetch of the
+   * video into IndexedDB) - independent of wifiOnlyDeviceDownload above,
+   * which only covers handing an already-fetched file to the OS download
+   * manager. See lib/wifiGate.ts. */
+  wifiOnlyDownload: boolean;
+  /** Gates starting network playback in the player - never blocks playing an
+   * already-downloaded offline copy. See lib/wifiGate.ts. */
+  wifiOnlyStreaming: boolean;
 }
 
 export const DEFAULT_DOWNLOAD_SETTINGS: DownloadSettings = {
@@ -29,6 +37,8 @@ export const DEFAULT_DOWNLOAD_SETTINGS: DownloadSettings = {
   playlistSelectAllByDefault: true,
   parallelDownloads: 1,
   wifiOnlyDeviceDownload: false,
+  wifiOnlyDownload: false,
+  wifiOnlyStreaming: false,
 };
 
 export interface SourceDefaults {

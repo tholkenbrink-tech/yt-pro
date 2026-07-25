@@ -23,7 +23,7 @@ import {
   useInAppDownloadProgress,
 } from "@/lib/activeDownloadsStore";
 import { cancelQueuedDownload, enqueueDownload, useDownloadQueueStatus } from "@/lib/downloadQueueStore";
-import { shouldDownloadToDevice } from "@/lib/wifiGate";
+import { shouldDownloadToDevice, shouldStartDownload } from "@/lib/wifiGate";
 
 interface Props {
   item: JobItem;
@@ -96,6 +96,10 @@ export function DownloadCard({ item, onChanged }: Props) {
     } else if (queueStatus === "queued") {
       cancelQueuedDownload(item.id);
     } else if (queueStatus === "idle") {
+      if (!shouldStartDownload()) {
+        showToast("Download übersprungen (nicht im WLAN)");
+        return;
+      }
       enqueueDownload(item.id, startOfflineInApp);
     }
   };

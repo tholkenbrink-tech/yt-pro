@@ -83,6 +83,36 @@ export default function DownloadSettingsPage() {
         unterscheiden, daher fragt die App in dem Fall einmal nach.
       </p>
 
+      <label className="mb-1 flex min-h-11 items-center justify-between">
+        <span className="text-sm font-medium">Nur im WLAN herunterladen</span>
+        <input
+          type="checkbox"
+          checked={settings.wifiOnlyDownload}
+          onChange={(e) => update({ wifiOnlyDownload: e.target.checked })}
+          className="h-5 w-5 accent-accent"
+        />
+      </label>
+      <p className="mb-4 text-meta text-text-muted">
+        Gilt für das Speichern &quot;In der App&quot; - dabei wird das Video tatsächlich
+        über das Netzwerk geladen. Ohne WLAN wird der Download nicht
+        gestartet.
+      </p>
+
+      <label className="mb-1 flex min-h-11 items-center justify-between">
+        <span className="text-sm font-medium">Nur im WLAN streamen</span>
+        <input
+          type="checkbox"
+          checked={settings.wifiOnlyStreaming}
+          onChange={(e) => update({ wifiOnlyStreaming: e.target.checked })}
+          className="h-5 w-5 accent-accent"
+        />
+      </label>
+      <p className="mb-4 text-meta text-text-muted">
+        Verhindert das Abspielen über Mobilfunk. Bereits offline gespeicherte
+        Videos sind davon nicht betroffen und lassen sich weiterhin ohne WLAN
+        ansehen.
+      </p>
+
       <label htmlFor="parallel-downloads" className="mb-1 block text-sm font-medium">
         Parallele Downloads
       </label>

@@ -24,7 +24,7 @@ import {
   useInAppDownloadProgress,
 } from "@/lib/activeDownloadsStore";
 import { cancelQueuedDownload, enqueueDownload, useDownloadQueueStatus } from "@/lib/downloadQueueStore";
-import { shouldDownloadToDevice } from "@/lib/wifiGate";
+import { shouldDownloadToDevice, shouldStartDownload } from "@/lib/wifiGate";
 import { useToast } from "@/components/ToastProvider";
 
 function fromOfflineMeta(meta: Awaited<ReturnType<typeof getOfflineMeta>>): LibraryItem | null {
@@ -185,6 +185,10 @@ export default function VideoPlayerPage() {
     } else if (queueStatus === "queued") {
       cancelQueuedDownload(item.id);
     } else if (queueStatus === "idle") {
+      if (!shouldStartDownload()) {
+        showToast("Download übersprungen (nicht im WLAN)");
+        return;
+      }
       enqueueDownload(item.id, startOfflineInApp);
     }
   };

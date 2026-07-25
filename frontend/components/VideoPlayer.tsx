@@ -6,6 +6,7 @@ import { formatDuration } from "@/lib/format";
 import { type BackgroundPlaybackMode, getPlayerSettings, setPlayerSettings } from "@/lib/playerSettings";
 import { getOfflineBlob } from "@/lib/offlineStore";
 import { useDownloadQueueStatus } from "@/lib/downloadQueueStore";
+import { shouldStream } from "@/lib/wifiGate";
 import { BackgroundAudioButton } from "./BackgroundAudioButton";
 import { PictureInPictureButton } from "./PictureInPictureButton";
 import { ResumePlaybackPrompt } from "./ResumePlaybackPrompt";
@@ -34,7 +35,7 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
   const [resumePosition, setResumePosition] = useState<number | null>(null);
   const [showRestartButton, setShowRestartButton] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [src, setSrc] = useState<string>(() => api.streamUrl(itemId));
+  const [src, setSrc] = useState<string>("");
   const [isOfflineSource, setIsOfflineSource] = useState(false);
   const [isBuffering, setIsBuffering] = useState(true);
   const offlineObjectUrlRef = useRef<string | null>(null);
@@ -83,7 +84,13 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
 
   useEffect(() => {
     let cancelled = false;
-    setSrc(api.streamUrl(itemId));
+    // Optimistically start the network stream right away unless "Nur im
+    // WLAN streamen" is on and blocks it - the offline-copy check below is
+    // async (IndexedDB), and an offline copy always wins once found either
+    // way, so there's no point waiting for it before starting playback.
+    const streamingAllowed = shouldStream();
+    setSrc(streamingAllowed ? api.streamUrl(itemId) : "");
+    setError(streamingAllowed ? null : "wifi-required");
     setIsOfflineSource(false);
     setIsBuffering(true);
     if (offlineObjectUrlRef.current) {
@@ -98,9 +105,11 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
         offlineObjectUrlRef.current = objectUrl;
         setSrc(objectUrl);
         setIsOfflineSource(true);
+        setError(null);
       })
       .catch(() => {
-        /* no offline copy - keep streaming from the network */
+        /* no offline copy - keep streaming from the network (or stay
+           blocked above if WLAN-only streaming vetoed it) */
       });
 
     return () => {
@@ -151,6 +160,7 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
       offlineObjectUrlRef.current = objectUrl;
       setSrc(objectUrl);
       setIsOfflineSource(true);
+      setError(null);
     });
 
     return () => {
@@ -417,7 +427,7 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
     <div className="relative">
       <video
         ref={videoRef}
-        src={src}
+        src={src || undefined}
         controls
         playsInline
         preload="metadata"
@@ -440,7 +450,7 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
           moment the app leaves the foreground - see handOffToShadowAudio
           above. preload="none" so it never competes for bandwidth during
           normal (foreground) playback. */}
-      <audio ref={shadowAudioRef} src={src} preload="none" className="hidden" />
+      <audio ref={shadowAudioRef} src={src || undefined} preload="none" className="hidden" />
 
       {isOfflineSource && (
         <p className="mt-2 text-xs text-text-muted">
@@ -450,11 +460,17 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
 
       {error && (
         <div className="mt-2 rounded-md bg-error/10 p-3 text-sm text-error">
-          <p className="font-medium">Video kann nicht abgespielt werden</p>
+          <p className="font-medium">
+            {error === "wifi-required"
+              ? "Streaming nur im WLAN erlaubt"
+              : "Video kann nicht abgespielt werden"}
+          </p>
           <p>
-            {isOfflineSource
-              ? "Die offline gespeicherte Datei konnte nicht gelesen werden."
-              : "Prüfe deine Verbindung oder bereite das Video erneut vor."}
+            {error === "wifi-required"
+              ? 'In den Einstellungen ist "Nur im WLAN streamen" aktiviert. Verbinde dich mit dem WLAN oder speichere das Video vorher offline in der App.'
+              : isOfflineSource
+                ? "Die offline gespeicherte Datei konnte nicht gelesen werden."
+                : "Prüfe deine Verbindung oder bereite das Video erneut vor."}
           </p>
         </div>
       )}
