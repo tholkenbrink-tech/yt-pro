@@ -10,8 +10,9 @@ function storageKey(): string {
 
 /**
  * What happens when the user leaves the app while a video is playing:
- * "audio" keeps the audio track playing in the background (the default),
- * "pip" pops the video into a floating Picture-in-Picture window instead.
+ * "pip" pops the video into a floating Picture-in-Picture window (the
+ * default), "audio" keeps just the audio track playing in the background
+ * instead.
  */
 export type BackgroundPlaybackMode = "audio" | "pip";
 
@@ -30,7 +31,7 @@ export const DEFAULT_PLAYER_SETTINGS: PlayerSettings = {
   markWatchedAt95: true,
   replayAfterFinish: true,
   showPipButton: true,
-  backgroundPlaybackMode: "audio",
+  backgroundPlaybackMode: "pip",
 };
 
 export function getPlayerSettings(): PlayerSettings {
