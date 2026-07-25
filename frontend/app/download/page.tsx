@@ -39,9 +39,6 @@ const QUALITY_OPTIONS = [
   { name: "1080p", label: "1080p" },
 ];
 
-const PLAYLIST_ITEM_WARNING_THRESHOLD = 20;
-const PLAYLIST_DURATION_WARNING_THRESHOLD = 2 * 60 * 60;
-
 export default function DownloadPage() {
   const router = useRouter();
   const [text, setText] = useState("");
@@ -192,14 +189,6 @@ export default function DownloadPage() {
     setSelectedIds(new Set());
     updatePendingSelection([]);
   };
-
-  const showPlaylistWarning = useMemo(() => {
-    if (!analysis || analysis.result.kind !== "playlist") return false;
-    return (
-      analysis.result.itemCount > PLAYLIST_ITEM_WARNING_THRESHOLD ||
-      analysis.result.totalDuration > PLAYLIST_DURATION_WARNING_THRESHOLD
-    );
-  }, [analysis]);
 
   // No size-estimation exists in the analyze pipeline (would need a
   // per-format probe) - estimatedTotalSize is genuinely unknown for now,
@@ -402,13 +391,6 @@ export default function DownloadPage() {
                   </p>
                 </div>
               </div>
-
-              {showPlaylistWarning && (
-                <p className="mt-3 rounded-xl bg-warning/10 p-3 text-sm text-warning">
-                  Diese Playlist ist groß. Das Herunterladen aller Videos kann
-                  lange dauern und viel Speicherplatz belegen.
-                </p>
-              )}
 
               <div className="mb-2 mt-4 flex items-center justify-between">
                 <h3 className="text-sm font-semibold">Videos auswählen</h3>
