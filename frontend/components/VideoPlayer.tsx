@@ -31,6 +31,7 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
   const markedWatchedRef = useRef(false);
   const settingsRef = useRef(getPlayerSettings());
   const [resumePosition, setResumePosition] = useState<number | null>(null);
+  const [showRestartButton, setShowRestartButton] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [src, setSrc] = useState<string>(() => api.streamUrl(itemId));
   const [isOfflineSource, setIsOfflineSource] = useState(false);
@@ -115,6 +116,7 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
           !progress.completed
         ) {
           setResumePosition(progress.positionSeconds);
+          setShowRestartButton(true);
         }
       })
       .catch(() => {
@@ -381,9 +383,9 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
       )}
 
       <div className="mt-2 flex items-center justify-between gap-2">
-        {resumePosition !== null && (
+        {showRestartButton && (
           <ResumePlaybackPrompt
-            positionLabel={formatDuration(resumePosition)}
+            positionLabel={resumePosition !== null ? formatDuration(resumePosition) : null}
             onRestart={restartFromBeginning}
           />
         )}
