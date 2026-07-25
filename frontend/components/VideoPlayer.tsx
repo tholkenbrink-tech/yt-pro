@@ -35,6 +35,7 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
   const [error, setError] = useState<string | null>(null);
   const [src, setSrc] = useState<string>(() => api.streamUrl(itemId));
   const [isOfflineSource, setIsOfflineSource] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(true);
   const [backgroundPlaybackMode, setBackgroundPlaybackMode] = useState<BackgroundPlaybackMode>(
     () => settingsRef.current.backgroundPlaybackMode
   );
@@ -83,6 +84,7 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
     let objectUrl: string | null = null;
     setSrc(api.streamUrl(itemId));
     setIsOfflineSource(false);
+    setIsBuffering(true);
 
     getOfflineBlob(itemId)
       .then((blob) => {
@@ -168,7 +170,12 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
 
     const onPause = () => saveProgress();
     const onEnterPip = () => saveProgress();
-    const onError = () => setError("network");
+    const onError = () => {
+      setError("network");
+      setIsBuffering(false);
+    };
+    const onCanPlay = () => setIsBuffering(false);
+    const onWaiting = () => setIsBuffering(true);
 
     // Browsers only allow `.play()` without a fresh user gesture on an
     // element that has previously been "activated" by one. The shadow audio
@@ -240,6 +247,9 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
     video.addEventListener("play", onVideoPlay);
     video.addEventListener("enterpictureinpicture", onEnterPip);
     video.addEventListener("error", onError);
+    video.addEventListener("canplay", onCanPlay);
+    video.addEventListener("playing", onCanPlay);
+    video.addEventListener("waiting", onWaiting);
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("pagehide", onPageHide);
 
@@ -250,6 +260,9 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
       video.removeEventListener("play", onVideoPlay);
       video.removeEventListener("enterpictureinpicture", onEnterPip);
       video.removeEventListener("error", onError);
+      video.removeEventListener("canplay", onCanPlay);
+      video.removeEventListener("playing", onCanPlay);
+      video.removeEventListener("waiting", onWaiting);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pagehide", onPageHide);
       if (isShadowActiveRef.current) {
@@ -357,6 +370,15 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
       >
         Dein Browser unterstützt die Videowiedergabe nicht.
       </video>
+
+      {isBuffering && !error && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-md bg-black/20"
+        >
+          <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-white/30 border-t-white" />
+        </div>
+      )}
 
       {/* Hidden stand-in for the audio track while backgrounded on
           platforms (iOS Safari) that suspend a <video> element's audio the
