@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   closeNativePlayer,
   openNativePlayer,
+  releaseNativePlayerPage,
   setNativePlayerBackgroundMode,
   updateNativePlayerFrame,
   useNativePlayerState,
@@ -104,6 +105,10 @@ export function NativeVideoPlayer({ itemId, title, channelName, thumbnail, autoP
       window.removeEventListener("scroll", scheduleSync);
       resizeObserver.disconnect();
       if (rafId !== null) cancelAnimationFrame(rafId);
+      // This page is no longer around to own the player's on-screen
+      // position - hide it rather than leaving it floating over whatever
+      // page comes next (see releaseNativePlayerPage's doc comment).
+      releaseNativePlayerPage(itemId);
     };
   }, [itemId]);
 

@@ -127,8 +127,8 @@ export default function VideoPlayerPage() {
 
   if (item === undefined) {
     return (
-      <main className="mx-auto max-w-2xl pl-[calc(1rem+env(safe-area-inset-left))] pr-[calc(1rem+env(safe-area-inset-right))] pb-4 pt-6">
-        <div className="mx-auto max-w-2xl">
+      <main className="mx-auto max-w-2xl pl-[calc(1rem+env(safe-area-inset-left))] pr-[calc(1rem+env(safe-area-inset-right))] pb-4 pt-6 md:max-w-4xl">
+        <div className="mx-auto max-w-2xl md:max-w-none">
           <Skeleton className="aspect-video w-full" />
         </div>
         <Skeleton className="mt-4 h-6 w-3/4" />
@@ -257,8 +257,16 @@ export default function VideoPlayerPage() {
   };
 
   return (
-    <main className="mx-auto max-w-2xl pl-[calc(1rem+env(safe-area-inset-left))] pr-[calc(1rem+env(safe-area-inset-right))] pb-4 pt-6">
-      <div className="mx-auto max-w-2xl">
+    <main className="mx-auto max-w-2xl pl-[calc(1rem+env(safe-area-inset-left))] pr-[calc(1rem+env(safe-area-inset-right))] pb-4 pt-6 md:max-w-4xl">
+      {/* Capped at max-w-2xl (matches the text column below) below md, but
+          allowed to use the wider `main` once the desktop sidebar is
+          showing (see AppShell/DesktopSidebar's own md: breakpoint) - e.g.
+          landscape on a large-enough phone or iPad - instead of staying
+          centered at a fixed 42rem regardless of how much room is actually
+          next to the sidebar. On narrower landscape phones (still below
+          md, no sidebar) this has no effect: the video simply fills the
+          page's own width, same as portrait. */}
+      <div className="mx-auto max-w-2xl md:max-w-none">
         <VideoPlayer
           itemId={item.id}
           title={item.title}
@@ -268,87 +276,89 @@ export default function VideoPlayerPage() {
         />
       </div>
 
-      <h1 className="mt-4 text-card-title notranslate" translate="no">
-        {item.title}
-      </h1>
-      <div className="mt-1 flex flex-wrap items-center gap-2 text-meta text-text-muted">
-        {item.channelName && (
-          <span className="notranslate" translate="no">
-            {item.channelName}
-          </span>
+      <div className="mx-auto max-w-2xl">
+        <h1 className="mt-4 text-card-title notranslate" translate="no">
+          {item.title}
+        </h1>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-meta text-text-muted">
+          {item.channelName && (
+            <span className="notranslate" translate="no">
+              {item.channelName}
+            </span>
+          )}
+          {renderedFromOfflineCache ? (
+            <span className="rounded-pill bg-success/15 px-2.5 py-1 text-xs font-medium text-success">
+              Offline
+            </span>
+          ) : (
+            <SourceBadge isAutomatic={item.isAutomaticallyPrepared} sourceName={item.sourceName} />
+          )}
+        </div>
+        <p className="mt-1 text-meta text-text-muted">
+          {[formatDuration(item.duration), item.selectedQuality, formatBytes(item.fileSize)]
+            .filter((part) => part && part !== "-")
+            .join(" - ")}
+        </p>
+        {item.createdAt && (
+          <p className="mt-1 text-meta text-text-muted">Download auf NAS: {formatDate(item.createdAt)}</p>
         )}
-        {renderedFromOfflineCache ? (
-          <span className="rounded-pill bg-success/15 px-2.5 py-1 text-xs font-medium text-success">
-            Offline
-          </span>
-        ) : (
-          <SourceBadge isAutomatic={item.isAutomaticallyPrepared} sourceName={item.sourceName} />
-        )}
-      </div>
-      <p className="mt-1 text-meta text-text-muted">
-        {[formatDuration(item.duration), item.selectedQuality, formatBytes(item.fileSize)]
-          .filter((part) => part && part !== "-")
-          .join(" - ")}
-      </p>
-      {item.createdAt && (
-        <p className="mt-1 text-meta text-text-muted">Download auf NAS: {formatDate(item.createdAt)}</p>
-      )}
 
-      <div className="mt-4 flex gap-2 rounded-2xl bg-surface-elevated p-1">
-        <button
-          type="button"
-          aria-label={
-            queueStatus === "downloading"
-              ? "Download abbrechen"
-              : hasOfflineCopy
-                ? "Offline-Kopie in der App entfernen"
-                : "In der App speichern"
-          }
-          disabled={removingOffline}
-          onClick={handleOfflineButtonClick}
-          className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13px] font-semibold disabled:opacity-50 ${
-            hasOfflineCopy ? "bg-success/15 text-success" : "text-text-secondary"
-          }`}
-        >
-          {queueStatus !== "idle"
-            ? saveProgressPct !== null
-              ? `${saveProgressPct}%`
-              : "…"
-            : hasOfflineCopy
-              ? "✓ App"
-              : "In der App"}
-        </button>
-        <button
-          type="button"
-          aria-label={deviceDownloaded ? "Auf Gerät gespeichert - verwalten" : "Auf Gerät speichern"}
-          onClick={handleDeviceButtonClick}
-          className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13px] font-semibold ${
-            deviceDownloaded ? "bg-success/15 text-success" : "text-text-secondary"
-          }`}
-        >
-          {deviceDownloaded ? "✓ Gerät" : "Gerät"}
-        </button>
-        {item.originalUrl && (
-          <a
-            href={item.originalUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13px] text-text-secondary"
+        <div className="mt-4 flex gap-2 rounded-2xl bg-surface-elevated p-1">
+          <button
+            type="button"
+            aria-label={
+              queueStatus === "downloading"
+                ? "Download abbrechen"
+                : hasOfflineCopy
+                  ? "Offline-Kopie in der App entfernen"
+                  : "In der App speichern"
+            }
+            disabled={removingOffline}
+            onClick={handleOfflineButtonClick}
+            className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13px] font-semibold disabled:opacity-50 ${
+              hasOfflineCopy ? "bg-success/15 text-success" : "text-text-secondary"
+            }`}
           >
-            🔗 Original
-          </a>
-        )}
-      </div>
+            {queueStatus !== "idle"
+              ? saveProgressPct !== null
+                ? `${saveProgressPct}%`
+                : "…"
+              : hasOfflineCopy
+                ? "✓ App"
+                : "In der App"}
+          </button>
+          <button
+            type="button"
+            aria-label={deviceDownloaded ? "Auf Gerät gespeichert - verwalten" : "Auf Gerät speichern"}
+            onClick={handleDeviceButtonClick}
+            className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13px] font-semibold ${
+              deviceDownloaded ? "bg-success/15 text-success" : "text-text-secondary"
+            }`}
+          >
+            {deviceDownloaded ? "✓ Gerät" : "Gerät"}
+          </button>
+          {item.originalUrl && (
+            <a
+              href={item.originalUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13px] text-text-secondary"
+            >
+              🔗 Original
+            </a>
+          )}
+        </div>
 
-      <div className="mt-4 text-center">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => setShowDeleteConfirm(true)}
-          className="text-xs font-medium text-error disabled:opacity-50"
-        >
-          Von NAS löschen
-        </button>
+        <div className="mt-4 text-center">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setShowDeleteConfirm(true)}
+            className="text-xs font-medium text-error disabled:opacity-50"
+          >
+            Von NAS löschen
+          </button>
+        </div>
       </div>
 
       <ConfirmationDialog

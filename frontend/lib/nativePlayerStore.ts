@@ -210,11 +210,29 @@ export function closeNativePlayer(): void {
 /** Forwards a live placeholder-position measurement to the native side, but
  * only while `itemId` is actually the one being shown - guards against a
  * page that no longer owns the on-screen player (navigated away, or a
- * different video opened elsewhere) repositioning someone else's. */
+ * different video opened elsewhere) repositioning someone else's. Also
+ * un-hides the player, since a page successfully claiming the frame is
+ * exactly the signal that it's the one that should be showing it now (see
+ * releaseNativePlayerPage for the other half of this). */
 export function updateNativePlayerFrame(itemId: string, frame: NativePlayerFrame): void {
   if (snapshot.meta?.itemId !== itemId || !snapshot.isPresented) return;
   if (frame.width <= 0 || frame.height <= 0) return;
   NativePlayer.updateFrame(frame).catch(() => undefined);
+  NativePlayer.setVisible({ visible: true }).catch(() => undefined);
+}
+
+/** Called when a page that was showing the native player's placeholder
+ * unmounts (SPA navigation away, not a real close). The player's raw UIKit
+ * overlay has no idea the page changed underneath it, so without this it
+ * would keep floating on top of whatever page comes next - hiding it
+ * (playback/background audio continues) is what keeps the app navigable
+ * while the player is "minimized" this way. A no-op if some other page
+ * already claimed the placeholder in the meantime (e.g. a fast back-then-
+ * forward navigation), since only the page that still matches should be
+ * able to hide it. */
+export function releaseNativePlayerPage(itemId: string): void {
+  if (snapshot.meta?.itemId !== itemId || !snapshot.isPresented) return;
+  NativePlayer.setVisible({ visible: false }).catch(() => undefined);
 }
 
 export function setNativePlayerBackgroundMode(mode: BackgroundPlaybackMode): void {

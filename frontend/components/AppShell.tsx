@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { DesktopSidebar } from "./DesktopSidebar";
 import { MobileBottomNavigation } from "./MobileBottomNavigation";
+import { NativePlayerMiniBar } from "./NativePlayerMiniBar";
 
 const NO_CHROME_PATHS = ["/login", "/offline"];
 
@@ -22,6 +23,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           as --mobile-nav-height by MobileBottomNavigation) so page content
           never renders underneath it - 0 on md+ where the nav is hidden. */}
       <div className="pb-[var(--mobile-nav-height)] md:pb-0 md:pl-64">{children}</div>
+      <NativePlayerMiniBar />
       <MobileBottomNavigation />
     </>
   );

@@ -71,7 +71,8 @@ public class NativePlayerPlugin: CAPPlugin, CAPBridgedPlugin, AVPlayerViewContro
         CAPPluginMethod(name: "present", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "dismiss", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setBackgroundMode", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "updateFrame", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "updateFrame", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setVisible", returnType: CAPPluginReturnPromise)
     ]
 
     private var player: AVPlayer?
@@ -263,6 +264,24 @@ public class NativePlayerPlugin: CAPPlugin, CAPBridgedPlugin, AVPlayerViewContro
         let pip = call.getString("mode") == "pip"
         DispatchQueue.main.async { [weak self] in
             self?.playerViewController?.canStartPictureInPictureAutomaticallyFromInline = pip
+        }
+        call.resolve()
+    }
+
+    // The player's view is a raw UIKit overlay pinned to whatever screen
+    // coordinates the last updateFrame() call gave it - it has no idea the
+    // web side did an SPA navigation to a page with different content
+    // underneath. Without this, leaving the video's page while it's playing
+    // inline (not fullscreen, not in system PiP) would leave that overlay
+    // floating on top of the next page, exactly the "invisible overlay
+    // blocks the interface" failure mode - hiding it (playback/audio
+    // continues) is what makes the rest of the app usable again until the
+    // web side calls this with `visible: true` from whichever page next
+    // owns this item's placeholder.
+    @objc func setVisible(_ call: CAPPluginCall) {
+        let visible = call.getBool("visible") ?? true
+        DispatchQueue.main.async { [weak self] in
+            self?.playerViewController?.view.isHidden = !visible
         }
         call.resolve()
     }

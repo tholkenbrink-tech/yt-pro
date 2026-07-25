@@ -45,6 +45,12 @@ export interface NativePlayerPluginInterface {
    * aligned with the page's actual (possibly responsive/sidebar) layout
    * instead of a fixed guess. */
   updateFrame(frame: NativePlayerFrame): Promise<void>;
+  /** Shows/hides the native player's view without tearing it down -
+   * playback (and background audio/PiP) keeps running either way. Used
+   * whenever the page that owns the player's on-screen placeholder is no
+   * longer the one currently visible, so the player doesn't stay floating
+   * on top of whatever page comes next. */
+  setVisible(options: { visible: boolean }): Promise<void>;
   addListener(
     eventName: "timeUpdate",
     listenerFunc: (data: NativePlayerTimeUpdate) => void
