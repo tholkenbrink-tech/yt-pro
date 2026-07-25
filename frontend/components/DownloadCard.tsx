@@ -22,6 +22,7 @@ import {
   stopTracking,
   useInAppDownloadProgress,
 } from "@/lib/activeDownloadsStore";
+import { cancelQueuedDownload, enqueueDownload, useDownloadQueueStatus } from "@/lib/downloadQueueStore";
 import { shouldDownloadToDevice } from "@/lib/wifiGate";
 
 interface Props {
@@ -39,7 +40,8 @@ export function DownloadCard({ item, onChanged }: Props) {
   const [deviceDownloaded, setDeviceDownloaded] = useState(false);
   const [removingOffline, setRemovingOffline] = useState(false);
   const { showToast } = useToast();
-  const { saving: savingOffline, pct: saveProgressPct } = useInAppDownloadProgress(item.id);
+  const { pct: saveProgressPct } = useInAppDownloadProgress(item.id);
+  const queueStatus = useDownloadQueueStatus(item.id);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,8 +93,10 @@ export function DownloadCard({ item, onChanged }: Props) {
   const handleOfflineButtonClick = () => {
     if (offline) {
       setShowRemoveOfflineConfirm(true);
-    } else {
-      startOfflineInApp();
+    } else if (queueStatus === "queued") {
+      cancelQueuedDownload(item.id);
+    } else if (queueStatus === "idle") {
+      enqueueDownload(item.id, startOfflineInApp);
     }
   };
 
@@ -188,7 +192,7 @@ export function DownloadCard({ item, onChanged }: Props) {
       <div className="mt-3 flex gap-2">
         <button
           type="button"
-          disabled={savingOffline || removingOffline}
+          disabled={queueStatus === "downloading" || removingOffline}
           onClick={handleOfflineButtonClick}
           className={`flex-1 rounded-lg px-4 py-3 text-center text-sm font-medium active:opacity-80 disabled:opacity-50 ${
             offline
@@ -198,13 +202,15 @@ export function DownloadCard({ item, onChanged }: Props) {
         >
           {removingOffline
             ? "Wird entfernt..."
-            : savingOffline
+            : queueStatus === "downloading"
               ? saveProgressPct !== null
                 ? `${saveProgressPct}%`
                 : "…"
-              : offline
-                ? "In der App - entfernen"
-                : "In der App speichern"}
+              : queueStatus === "queued"
+                ? "In Warteschlange - abbrechen"
+                : offline
+                  ? "In der App - entfernen"
+                  : "In der App speichern"}
         </button>
         <button
           type="button"

@@ -25,6 +25,7 @@ import {
   stopTracking,
   useInAppDownloadProgress,
 } from "@/lib/activeDownloadsStore";
+import { cancelQueuedDownload, enqueueDownload, useDownloadQueueStatus } from "@/lib/downloadQueueStore";
 import { shouldDownloadToDevice } from "@/lib/wifiGate";
 
 interface Props {
@@ -45,7 +46,8 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
   const [deviceDownloaded, setDeviceDownloaded] = useState(false);
   const [removingOffline, setRemovingOffline] = useState(false);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
-  const { saving: savingOffline, pct: saveProgressPct } = useInAppDownloadProgress(item.id);
+  const { pct: saveProgressPct } = useInAppDownloadProgress(item.id);
+  const queueStatus = useDownloadQueueStatus(item.id);
   const { showToast } = useToast();
   const state = deriveMediaState(item);
   const hasProgress = Boolean(item.progress && !item.progress.completed && item.progress.positionSeconds > 0);
@@ -90,8 +92,10 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
   const handleOfflineButtonClick = () => {
     if (offline) {
       setShowRemoveOfflineConfirm(true);
-    } else {
-      startOfflineInApp();
+    } else if (queueStatus === "queued") {
+      cancelQueuedDownload(item.id);
+    } else if (queueStatus === "idle") {
+      enqueueDownload(item.id, startOfflineInApp);
     }
   };
 
@@ -199,18 +203,18 @@ export function MediaCard({ item, onChanged, showOwner }: Props) {
         <button
           type="button"
           aria-label={offline ? "Offline-Kopie in der App entfernen" : "In der App speichern"}
-          disabled={savingOffline || removingOffline}
+          disabled={queueStatus === "downloading" || removingOffline}
           onClick={handleOfflineButtonClick}
           className={`relative flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base disabled:opacity-50 ${
             offline ? "border-success bg-success/15 text-success" : "border-border"
           }`}
         >
-          {savingOffline ? (
+          {queueStatus !== "idle" ? (
             <span className="text-xs font-medium">{saveProgressPct !== null ? `${saveProgressPct}%` : "…"}</span>
           ) : (
             "⬇"
           )}
-          {offline && !savingOffline && (
+          {offline && queueStatus === "idle" && (
             <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-success text-[10px] leading-none text-white">
               ✓
             </span>

@@ -8,6 +8,7 @@ import { VideoPlayer } from "@/components/VideoPlayer";
 import { SourceBadge } from "@/components/SourceBadge";
 import { formatBytes, formatDate, formatDuration } from "@/lib/format";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
+import { Skeleton } from "@/components/Skeleton";
 import { IOSSaveInstructions, SEEN_INSTRUCTIONS_KEY } from "@/components/IOSSaveInstructions";
 import { DeviceFileInstructions } from "@/components/DeviceFileInstructions";
 import { getOfflineMeta, isOffline, removeOffline, saveOfflineInApp, triggerDeviceDownload } from "@/lib/offlineStore";
@@ -22,6 +23,7 @@ import {
   stopTracking,
   useInAppDownloadProgress,
 } from "@/lib/activeDownloadsStore";
+import { cancelQueuedDownload, enqueueDownload, useDownloadQueueStatus } from "@/lib/downloadQueueStore";
 import { shouldDownloadToDevice } from "@/lib/wifiGate";
 import { useToast } from "@/components/ToastProvider";
 
@@ -61,7 +63,8 @@ export default function VideoPlayerPage() {
   const [showDeviceInstructions, setShowDeviceInstructions] = useState(false);
   const [deviceDownloaded, setDeviceDownloaded] = useState(false);
   const { showToast } = useToast();
-  const { saving: savingOffline, pct: saveProgressPct } = useInAppDownloadProgress(videoId);
+  const { pct: saveProgressPct } = useInAppDownloadProgress(videoId);
+  const queueStatus = useDownloadQueueStatus(videoId);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,8 +121,20 @@ export default function VideoPlayerPage() {
 
   if (item === undefined) {
     return (
-      <main className="mx-auto max-w-2xl px-5 pb-4 pt-6">
-        <p className="text-sm text-text-muted">Wird geladen...</p>
+      <main className="mx-auto max-w-2xl px-safe-left px-5 pb-4 pt-6 pr-safe-right">
+        <div className="mx-auto max-w-2xl">
+          <Skeleton className="aspect-video w-full" />
+        </div>
+        <Skeleton className="mt-4 h-6 w-3/4" />
+        <div className="mt-2 flex items-center gap-2">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-5 w-16 rounded-pill" />
+        </div>
+        <Skeleton className="mt-2 h-4 w-1/2" />
+        <div className="mt-4 flex items-center gap-2">
+          <Skeleton className="h-10 w-10" />
+          <Skeleton className="h-10 w-10" />
+        </div>
       </main>
     );
   }
@@ -167,8 +182,10 @@ export default function VideoPlayerPage() {
   const handleOfflineButtonClick = () => {
     if (hasOfflineCopy) {
       setShowRemoveOfflineConfirm(true);
-    } else {
-      startOfflineInApp();
+    } else if (queueStatus === "queued") {
+      cancelQueuedDownload(item.id);
+    } else if (queueStatus === "idle") {
+      enqueueDownload(item.id, startOfflineInApp);
     }
   };
 
@@ -250,18 +267,18 @@ export default function VideoPlayerPage() {
         <button
           type="button"
           aria-label={hasOfflineCopy ? "Offline-Kopie in der App entfernen" : "In der App speichern"}
-          disabled={savingOffline || removingOffline}
+          disabled={queueStatus === "downloading" || removingOffline}
           onClick={handleOfflineButtonClick}
           className={`relative flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base disabled:opacity-50 ${
             hasOfflineCopy ? "border-success bg-success/15 text-success" : "border-border"
           }`}
         >
-          {savingOffline ? (
+          {queueStatus !== "idle" ? (
             <span className="text-xs font-medium">{saveProgressPct !== null ? `${saveProgressPct}%` : "…"}</span>
           ) : (
             "⬇"
           )}
-          {hasOfflineCopy && !savingOffline && (
+          {hasOfflineCopy && queueStatus === "idle" && (
             <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-success text-[10px] leading-none text-white">
               ✓
             </span>
