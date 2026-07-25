@@ -127,7 +127,7 @@ export default function VideoPlayerPage() {
 
   if (item === undefined) {
     return (
-      <main className="mx-auto max-w-2xl px-safe-left px-5 pb-4 pt-6 pr-safe-right">
+      <main className="mx-auto max-w-2xl pl-[calc(1.25rem+env(safe-area-inset-left))] pr-[calc(1.25rem+env(safe-area-inset-right))] pb-4 pt-6">
         <div className="mx-auto max-w-2xl">
           <Skeleton className="aspect-video w-full" />
         </div>
@@ -257,7 +257,7 @@ export default function VideoPlayerPage() {
   };
 
   return (
-    <main className="mx-auto max-w-2xl px-safe-left px-5 pb-4 pt-6 pr-safe-right">
+    <main className="mx-auto max-w-2xl pl-[calc(1.25rem+env(safe-area-inset-left))] pr-[calc(1.25rem+env(safe-area-inset-right))] pb-4 pt-6">
       <div className="mx-auto max-w-2xl">
         <VideoPlayer
           itemId={item.id}
