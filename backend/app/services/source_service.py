@@ -14,6 +14,7 @@ from app.models.monitored_source import MonitoredSource, MonitoredSourceMode, Mo
 from app.models.monitored_source_item import MonitoredSourceItem, MonitoredSourceItemStatus
 from app.models.source_check_run import SourceCheckRun, SourceCheckRunStatus
 from app.services import ytdlp_runner
+from app.services.folder_service import get_or_create_folder
 from app.services.job_service import DuplicateJobError, create_job
 
 logger = logging.getLogger("yt_pro.source_service")
@@ -311,6 +312,7 @@ async def _run_check(db, source: MonitoredSource, run: SourceCheckRun) -> None:
 
 
 def _prepare_item(db, source: MonitoredSource, source_item: MonitoredSourceItem, profile: DownloadProfile) -> None:
+    folder = get_or_create_folder(db, source.name)
     try:
         job = create_job(
             db,
@@ -329,6 +331,7 @@ def _prepare_item(db, source: MonitoredSource, source_item: MonitoredSourceItem,
             ],
             monitored_source_id=source.id,
             is_automatically_prepared=True,
+            folder_id=folder.id,
         )
     except DuplicateJobError:
         source_item.status = MonitoredSourceItemStatus.QUEUED

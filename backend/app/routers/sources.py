@@ -24,6 +24,7 @@ from app.schemas.sources import (
     SourceCheckRunOut,
 )
 from app.services import source_service, ytdlp_runner
+from app.services.folder_service import get_or_create_folder
 from app.services.job_service import DuplicateJobError, create_job
 from app.services.url_validation import validate_media_url
 
@@ -238,6 +239,7 @@ def prepare_source_item(
     if not profile:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown downloadProfileId")
 
+    folder = get_or_create_folder(db, source.name)
     try:
         job = create_job(
             db,
@@ -256,6 +258,7 @@ def prepare_source_item(
             ],
             monitored_source_id=source.id,
             is_automatically_prepared=True,
+            folder_id=folder.id,
         )
     except DuplicateJobError as exc:
         raise HTTPException(

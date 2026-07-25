@@ -19,6 +19,7 @@ from app.models.status import TERMINAL_STATUSES, Status
 from app.models.user import User
 from app.schemas.jobs import CreateJobRequest, DownloadJobOut
 from app.services.disk import has_enough_free_disk
+from app.services.folder_service import get_or_create_folder
 from app.services.job_service import DuplicateJobError, create_job
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
@@ -60,6 +61,10 @@ def create(
         ]
 
     is_playlist = len(items) > 1
+    folder_id = None
+    if is_playlist and body.playlistTitle:
+        folder_id = get_or_create_folder(db, body.playlistTitle).id
+
     try:
         job = create_job(
             db,
@@ -69,6 +74,7 @@ def create(
             title=body.playlistTitle if is_playlist else None,
             quality=body.selectedQuality,
             items=items,
+            folder_id=folder_id,
         )
     except DuplicateJobError as exc:
         raise HTTPException(

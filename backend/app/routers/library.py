@@ -1,22 +1,31 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
+from app.core.config import settings
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_csrf
 from app.models.download_item import DownloadItem
 from app.models.download_job import DownloadJob
+from app.models.folder import Folder
 from app.models.monitored_source import MonitoredSource
 from app.models.monitored_source_item import MonitoredSourceItem
 from app.models.playback_progress import PlaybackProgress
 from app.models.status import Status
 from app.models.user import User
-from app.schemas.library import LibraryItemOut, LibraryProgressOut
+from app.schemas.library import (
+    FolderOut,
+    LibraryItemOut,
+    LibraryProgressOut,
+    MoveItemToFolderRequest,
+    MoveItemToFolderResponse,
+)
 
 router = APIRouter(prefix="/api/library", tags=["library"])
 
@@ -90,6 +99,12 @@ def get_library(
     if source_ids:
         rows = db.execute(select(MonitoredSource.id, MonitoredSource.name).where(MonitoredSource.id.in_(source_ids)))
         source_names = {row.id: row.name for row in rows}
+
+    folder_names: dict[str, str] = {}
+    folder_ids = {i.folderId for i in items if i.folderId}
+    if folder_ids:
+        rows = db.execute(select(Folder.id, Folder.name).where(Folder.id.in_(folder_ids)))
+        folder_names = {row.id: row.name for row in rows}
 
     job_titles: dict[str, str] = {}
     owner_by_job: dict[str, str] = {}
@@ -171,6 +186,8 @@ def get_library(
                 sourceId=item.monitoredSourceId,
                 jobId=item.jobId,
                 playlistTitle=job_titles.get(item.jobId),
+                folderId=item.folderId,
+                folderName=folder_names.get(item.folderId) if item.folderId else None,
                 ownerName=owner_by_job.get(item.jobId),
                 publishedAt=published_at_by_item.get(item.id),
                 createdAt=item.createdAt,
@@ -191,3 +208,59 @@ def get_library(
         results.sort(key=lambda r: r.publishedAt or datetime.min, reverse=True)
 
     return results
+
+
+@router.get("/folders", response_model=list[FolderOut])
+def list_folders(db: DBSession = Depends(get_db), user: User = Depends(get_current_user)):
+    rows = db.execute(
+        select(Folder.id, Folder.name, func.count(DownloadItem.id))
+        .join(DownloadItem, DownloadItem.folderId == Folder.id)
+        .group_by(Folder.id)
+        .order_by(Folder.name)
+    ).all()
+    return [FolderOut(id=row[0], name=row[1], itemCount=row[2]) for row in rows]
+
+
+@router.put(
+    "/items/{item_id}/folder",
+    response_model=MoveItemToFolderResponse,
+    dependencies=[Depends(require_csrf)],
+)
+def move_item_to_folder(
+    item_id: str,
+    body: MoveItemToFolderRequest,
+    db: DBSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Moves a standalone (not-yet-foldered) item into an existing folder,
+    both in the Mediathek and physically on the NAS. Items already in a
+    folder aren't handled here - that grouping is managed automatically via
+    the playlist/source it came from."""
+    item = db.get(DownloadItem, item_id)
+    if not item or item.deletedFromServerAt is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+    if item.folderId:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Item is already in a folder")
+    if not item.mediaPath or not os.path.exists(item.mediaPath):
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail="File no longer available")
+
+    folder = db.get(Folder, body.folderId)
+    if not folder:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+
+    folder_dir = os.path.join(settings.TEMP_DIR, folder.dirName)
+    os.makedirs(folder_dir, exist_ok=True)
+
+    file_name = item.fileName or os.path.basename(item.mediaPath)
+    target = os.path.join(folder_dir, file_name)
+    if os.path.exists(target):
+        stem, ext = os.path.splitext(file_name)
+        target = os.path.join(folder_dir, f"{stem}-{item.id[:8]}{ext}")
+
+    os.replace(item.mediaPath, target)
+    item.mediaPath = target
+    item.fileName = os.path.basename(target)
+    item.folderId = folder.id
+    db.commit()
+
+    return MoveItemToFolderResponse(id=item.id, folderId=folder.id, folderName=folder.name)

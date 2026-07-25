@@ -3,6 +3,7 @@ from app.models.cookie_config import CookieConfig
 from app.models.download_item import DownloadItem
 from app.models.download_job import DownloadJob
 from app.models.download_profile import DownloadProfile
+from app.models.folder import Folder
 from app.models.monitored_source import MonitoredSource
 from app.models.monitored_source_item import MonitoredSourceItem
 from app.models.playback_progress import PlaybackProgress
@@ -16,6 +17,7 @@ __all__ = [
     "DownloadItem",
     "DownloadJob",
     "DownloadProfile",
+    "Folder",
     "MonitoredSource",
     "MonitoredSourceItem",
     "PlaybackProgress",

@@ -47,4 +47,11 @@ class DownloadItem(Base, TimestampMixin):
     keepOnServer: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     lastStreamedAt: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
+    # Mediathek/NAS folder grouping - independent of jobId so items from
+    # separately-triggered downloads of the same playlist/source (or moved
+    # in manually via the Mediathek) end up in one folder. None = standalone,
+    # not shown grouped (e.g. a single manually-downloaded video).
+    folderId: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("folders.id"), nullable=True)
+
     job: Mapped["DownloadJob"] = relationship(back_populates="items")
+    folder: Mapped[Optional["Folder"]] = relationship(back_populates="items")

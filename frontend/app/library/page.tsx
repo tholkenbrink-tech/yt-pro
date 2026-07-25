@@ -44,34 +44,25 @@ interface FolderGroup {
 }
 
 function groupItems(items: LibraryItem[]): { standalone: LibraryItem[]; groups: FolderGroup[] } {
-  const bySource = new Map<string, LibraryItem[]>();
-  const byJob = new Map<string, LibraryItem[]>();
+  // Grouping is keyed on the server-assigned folderId - a stable Folder row
+  // shared by every download of the same playlist/source link, however many
+  // separate jobs or scheduler runs produced its items (see backend
+  // folder_service.get_or_create_folder). This is what makes reusing a
+  // playlist link land in the same Mediathek folder every time.
+  const byFolder = new Map<string, LibraryItem[]>();
   for (const item of items) {
-    if (item.sourceId) {
-      bySource.set(item.sourceId, [...(bySource.get(item.sourceId) ?? []), item]);
-    } else if (item.jobId) {
-      byJob.set(item.jobId, [...(byJob.get(item.jobId) ?? []), item]);
+    if (item.folderId) {
+      byFolder.set(item.folderId, [...(byFolder.get(item.folderId) ?? []), item]);
     }
   }
 
   const groups: FolderGroup[] = [];
   const groupedIds = new Set<string>();
 
-  for (const [sourceId, groupedItems] of bySource) {
+  for (const [folderId, groupedItems] of byFolder) {
     groups.push({
-      key: `source:${sourceId}`,
-      label: groupedItems[0].sourceName ?? "Automatische Quelle",
-      thumbnail: groupedItems[0].thumbnailPath,
-      items: groupedItems,
-    });
-    groupedItems.forEach((i) => groupedIds.add(i.id));
-  }
-
-  for (const [jobId, groupedItems] of byJob) {
-    if (groupedItems.length < 2) continue; // single-item manual job -> standalone, not a folder
-    groups.push({
-      key: `job:${jobId}`,
-      label: groupedItems[0].playlistTitle ?? "Playlist",
+      key: folderId,
+      label: groupedItems[0].folderName ?? groupedItems[0].sourceName ?? groupedItems[0].playlistTitle ?? "Ordner",
       thumbnail: groupedItems[0].thumbnailPath,
       items: groupedItems,
     });

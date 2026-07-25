@@ -147,6 +147,8 @@ export interface LibraryItem {
   sourceId?: string;
   jobId?: string;
   playlistTitle?: string;
+  folderId?: string;
+  folderName?: string;
   createdAt: string;
   publishedAt?: string;
   expiresAt?: string;
@@ -155,6 +157,12 @@ export interface LibraryItem {
   originalUrl?: string;
   /** Family account that downloaded this item - see JobItem.ownerName. */
   ownerName?: string;
+}
+
+export interface LibraryFolder {
+  id: string;
+  name: string;
+  itemCount: number;
 }
 
 export interface LibraryQuery {

@@ -17,6 +17,7 @@ from app.models.app_settings import SINGLETON_ID, AppSettings
 from app.models.download_item import DownloadItem
 from app.models.download_job import DownloadJob
 from app.models.download_profile import DownloadProfile
+from app.models.folder import Folder
 from app.models.monitored_source import MonitoredSource
 from app.models.monitored_source_item import MonitoredSourceItem
 from app.models.status import IN_PROGRESS_STATUSES, Status
@@ -118,13 +119,24 @@ def _set_status(db, job: DownloadJob, item: Optional[DownloadItem], value: Statu
 
 
 def _job_output_dir(db, job: DownloadJob, item: DownloadItem) -> str:
-    """One shared folder per playlist/source - a monitored source's downloads
-    reuse the same folder across separate scheduler runs (stable name =
-    grouping over time), a manual playlist download's items share one folder
-    named after the playlist. A single manual video gets no folder at all -
+    """One shared folder per playlist/source - resolved from item.folderId
+    (see folder_service.get_or_create_folder), so downloads of the same
+    playlist/source always land in the same NAS directory no matter which
+    job or scheduler run produced them, even across separate "reuse this
+    playlist link" downloads. A single manual video gets no folder at all -
     it's placed directly in TEMP_DIR (see _process_item's finalization,
     which names it after the video title) so browsing the NAS share doesn't
     mean opening one UUID-named folder per video."""
+    if item.folderId:
+        folder = db.get(Folder, item.folderId)
+        if folder:
+            path = os.path.join(settings.TEMP_DIR, folder.dirName)
+            os.makedirs(path, exist_ok=True)
+            return path
+
+    # Fallback for items created before folderId existed (should only ever
+    # apply to jobs still in flight at deploy time - the migration backfills
+    # everything already on disk).
     if item.monitoredSourceId:
         source = db.get(MonitoredSource, item.monitoredSourceId)
         if source and source.name:

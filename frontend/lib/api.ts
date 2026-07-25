@@ -5,6 +5,7 @@ import type {
   CookieStatus,
   CookieTestResult,
   Job,
+  LibraryFolder,
   LibraryItem,
   LibraryQuery,
   MonitoredSource,
@@ -219,6 +220,14 @@ export const api = {
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
     return request<LibraryItem[]>(`/api/library${suffix}`);
   },
+
+  listFolders: () => request<LibraryFolder[]>("/api/library/folders"),
+
+  moveItemToFolder: (itemId: string, folderId: string) =>
+    request<{ id: string; folderId: string; folderName: string }>(`/api/library/items/${itemId}/folder`, {
+      method: "PUT",
+      body: JSON.stringify({ folderId }),
+    }),
 
   // ---- Family accounts (hard-coded users, shared NAS library) ----
 

@@ -25,6 +25,22 @@ class KeepUpdateRequest(BaseModel):
     keep: bool
 
 
+class FolderOut(BaseModel):
+    id: str
+    name: str
+    itemCount: int
+
+
+class MoveItemToFolderRequest(BaseModel):
+    folderId: str
+
+
+class MoveItemToFolderResponse(BaseModel):
+    id: str
+    folderId: str
+    folderName: str
+
+
 class LibraryProgressOut(BaseModel):
     positionSeconds: float
     percentage: float
@@ -46,6 +62,8 @@ class LibraryItemOut(BaseModel):
     sourceId: Optional[str] = None
     jobId: Optional[str] = None
     playlistTitle: Optional[str] = None
+    folderId: Optional[str] = None
+    folderName: Optional[str] = None
     ownerName: Optional[str] = None
     publishedAt: Optional[datetime] = None
     createdAt: datetime

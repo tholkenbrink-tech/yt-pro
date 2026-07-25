@@ -4,7 +4,7 @@ import { memo, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import type { LibraryItem } from "@/lib/types";
+import type { LibraryFolder, LibraryItem } from "@/lib/types";
 import { deriveMediaState } from "@/lib/mediaStateConfig";
 import { MediaStatusBadge } from "./MediaStatusBadge";
 import { SourceBadge } from "./SourceBadge";
@@ -50,6 +50,9 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
   const [showInstructions, setShowInstructions] = useState(false);
   const [showDeviceInstructions, setShowDeviceInstructions] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showMoveSheet, setShowMoveSheet] = useState(false);
+  const [folders, setFolders] = useState<LibraryFolder[] | null>(null);
+  const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
   const [deviceDownloaded, setDeviceDownloaded] = useState(false);
   const [removingOffline, setRemovingOffline] = useState(false);
@@ -168,6 +171,30 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
     }
   };
 
+  const openMoveSheet = () => {
+    setShowMoveSheet(true);
+    if (!folders) {
+      api
+        .listFolders()
+        .then(setFolders)
+        .catch(() => showToast("Ordner konnten nicht geladen werden"));
+    }
+  };
+
+  const moveToFolder = async (folder: LibraryFolder) => {
+    setMovingFolderId(folder.id);
+    try {
+      await api.moveItemToFolder(item.id, folder.id);
+      setShowMoveSheet(false);
+      showToast(`In "${folder.name}" verschoben`);
+      onChanged?.();
+    } catch {
+      showToast("Verschieben fehlgeschlagen");
+    } finally {
+      setMovingFolderId(null);
+    }
+  };
+
   const savingInApp = queueStatus !== "idle";
 
   return (
@@ -282,6 +309,18 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
           >
             {deviceDownloaded ? "Auf Gerät gespeichert - verwalten" : "Auf Gerät speichern"}
           </button>
+          {!item.folderId && (
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                openMoveSheet();
+              }}
+              className="flex min-h-11 items-center rounded-xl px-3 text-left text-sm font-medium text-text-primary"
+            >
+              In Ordner verschieben
+            </button>
+          )}
           {item.originalUrl && (
             <a
               href={item.originalUrl}
@@ -308,6 +347,33 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
             Download auf NAS: {formatDate(item.createdAt)}
             {item.expiresAt ? ` - Läuft ab: ${formatDate(item.expiresAt)}` : ""}
           </p>
+        </div>
+      </BottomSheet>
+
+      <BottomSheet open={showMoveSheet} title="In Ordner verschieben" onClose={() => setShowMoveSheet(false)}>
+        <div className="flex flex-col gap-1">
+          {folders === null && <p className="px-3 py-2 text-sm text-text-muted">Ordner werden geladen...</p>}
+          {folders !== null && folders.length === 0 && (
+            <p className="px-3 py-2 text-sm text-text-muted">
+              Noch keine Ordner vorhanden - lade eine Playlist herunter, um einen Ordner anzulegen.
+            </p>
+          )}
+          {folders?.map((folder) => (
+            <button
+              key={folder.id}
+              type="button"
+              disabled={movingFolderId !== null}
+              onClick={() => moveToFolder(folder)}
+              className="flex min-h-11 items-center justify-between rounded-xl px-3 text-left text-sm font-medium text-text-primary disabled:opacity-50"
+            >
+              <span className="truncate notranslate" translate="no">
+                📁 {folder.name}
+              </span>
+              <span className="shrink-0 text-xs text-text-muted">
+                {movingFolderId === folder.id ? "…" : `${folder.itemCount} Videos`}
+              </span>
+            </button>
+          ))}
         </div>
       </BottomSheet>
 

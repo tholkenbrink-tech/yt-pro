@@ -38,6 +38,7 @@ def create_job(
     title: Optional[str] = None,
     monitored_source_id: Optional[str] = None,
     is_automatically_prepared: bool = False,
+    folder_id: Optional[str] = None,
 ) -> DownloadJob:
     existing = find_duplicate_job(db, user_id, source_url, quality)
     if existing:
@@ -68,6 +69,7 @@ def create_job(
                 status=Status.QUEUED.value,
                 monitoredSourceId=monitored_source_id,
                 isAutomaticallyPrepared=is_automatically_prepared,
+                folderId=folder_id,
             )
         )
 
