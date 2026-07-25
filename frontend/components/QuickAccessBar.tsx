@@ -92,7 +92,7 @@ export function QuickAccessBar({ onPick }: Props) {
       type="button"
       onClick={() => setAdding(true)}
       aria-label="Playlist als Schnellzugriff merken"
-      className="flex shrink-0 items-center justify-center self-stretch rounded-md border border-dashed border-border px-3 text-lg font-medium leading-none text-text-secondary"
+      className="flex aspect-square shrink-0 items-center justify-center self-stretch rounded-md border border-dashed border-border text-lg font-medium leading-none text-text-secondary"
     >
       +
     </button>
@@ -104,7 +104,7 @@ export function QuickAccessBar({ onPick }: Props) {
       onClick={() => onPick(lastLink)}
       aria-label="Letzten Link erneut einfügen"
       title={lastLink}
-      className="flex shrink-0 items-center justify-center self-stretch rounded-md border border-border bg-surface px-3 text-base text-text-secondary"
+      className="flex aspect-square shrink-0 items-center justify-center self-stretch rounded-md border border-border bg-surface text-base text-text-secondary"
     >
       ↺
     </button>
@@ -140,7 +140,7 @@ export function QuickAccessBar({ onPick }: Props) {
                 type="button"
                 onClick={() => remove(source.id, source.name)}
                 aria-label={`${source.name} entfernen`}
-                className="min-h-6 min-w-6 shrink-0 rounded text-text-muted hover:text-text-primary"
+                className="flex aspect-square h-9 shrink-0 items-center justify-center rounded text-text-muted hover:text-text-primary"
               >
                 ×
               </button>
