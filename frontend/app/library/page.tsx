@@ -34,7 +34,6 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: "date_asc", label: "Älteste" },
   { value: "title", label: "Titel" },
   { value: "size", label: "Größe" },
-  { value: "last_watched", label: "Zuletzt angesehen" },
 ];
 
 interface FolderGroup {
