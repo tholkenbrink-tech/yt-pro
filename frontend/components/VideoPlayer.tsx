@@ -390,6 +390,19 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
       if (details.seekTime !== undefined) activePlayer().currentTime = details.seekTime;
     });
 
+    // Chrome only actually auto-enters PiP on tab switch/backgrounding if
+    // this handler is registered - it's what the browser invokes itself
+    // (bypassing the normal user-gesture requirement) instead of relying on
+    // the autoPictureInPicture attribute alone. Only registered while "pip"
+    // is the chosen leave-the-app mode, so switching to "audio" doesn't
+    // fight the shadow-audio handoff above.
+    if (backgroundPlaybackMode === "pip") {
+      // Not yet in TS's lib.dom MediaSessionAction union.
+      navigator.mediaSession.setActionHandler("enterpictureinpicture" as MediaSessionAction, () => {
+        video.requestPictureInPicture().catch(() => undefined);
+      });
+    }
+
     const updatePlaybackState = () => {
       navigator.mediaSession.playbackState = activePlayer().paused ? "paused" : "playing";
     };
@@ -410,8 +423,9 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
       navigator.mediaSession.setActionHandler("seekbackward", null);
       navigator.mediaSession.setActionHandler("seekforward", null);
       navigator.mediaSession.setActionHandler("seekto", null);
+      navigator.mediaSession.setActionHandler("enterpictureinpicture" as MediaSessionAction, null);
     };
-  }, [itemId, title, channelName, thumbnail]);
+  }, [itemId, title, channelName, thumbnail, backgroundPlaybackMode]);
 
   const restartFromBeginning = async () => {
     setResumePosition(null);
