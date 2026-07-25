@@ -9,6 +9,7 @@ import { deriveMediaState } from "@/lib/mediaStateConfig";
 import { MediaStatusBadge } from "./MediaStatusBadge";
 import { SourceBadge } from "./SourceBadge";
 import { ConfirmationDialog } from "./ConfirmationDialog";
+import { BottomSheet } from "./BottomSheet";
 import { IOSSaveInstructions, SEEN_INSTRUCTIONS_KEY } from "./IOSSaveInstructions";
 import { DeviceFileInstructions } from "./DeviceFileInstructions";
 import { useToast } from "./ToastProvider";
@@ -42,6 +43,7 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
   const [showRemoveOfflineConfirm, setShowRemoveOfflineConfirm] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [showDeviceInstructions, setShowDeviceInstructions] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [offline, setOffline] = useState(false);
   const [deviceDownloaded, setDeviceDownloaded] = useState(false);
   const [removingOffline, setRemovingOffline] = useState(false);
@@ -145,118 +147,119 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
     }
   };
 
+  const savingInApp = queueStatus !== "idle";
+
   return (
-    <div className="rounded-md border border-border bg-surface p-3">
-      <Link href={`/library/${item.id}`} className="flex items-start gap-3">
+    <div className="flex items-center gap-3 rounded-2xl p-2.5 transition-colors hover:bg-surface">
+      <Link href={`/library/${item.id}`} className="relative shrink-0">
         {item.thumbnailPath && !thumbnailFailed ? (
           <Image
             src={item.thumbnailPath}
             alt=""
-            width={112}
-            height={63}
+            width={74}
+            height={74}
             unoptimized
             onError={() => setThumbnailFailed(true)}
-            className="h-[63px] w-28 shrink-0 rounded object-cover"
+            className="h-[74px] w-[74px] rounded-xl object-cover"
           />
         ) : (
-          <div className="flex h-[63px] w-28 shrink-0 items-center justify-center rounded bg-surface-elevated text-lg text-text-muted">
+          <div className="flex h-[74px] w-[74px] items-center justify-center rounded-xl border border-border bg-surface-elevated text-lg text-text-muted">
             🎬
           </div>
         )}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-card-title notranslate" translate="no">
-            {item.title}
-          </p>
-          {item.channelName && (
-            <p className="truncate text-meta text-text-muted notranslate" translate="no">
-              {item.channelName}
-            </p>
-          )}
-          <p className="mt-1 text-meta text-text-muted">
-            {[formatDuration(item.duration), item.selectedQuality, formatBytes(item.fileSize)]
-              .filter((part) => part && part !== "-")
-              .join(" - ")}
-          </p>
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            {state !== "started" && <MediaStatusBadge state={state} />}
-            {item.isAutomaticallyPrepared && (
-              <SourceBadge isAutomatic sourceName={item.sourceName} />
-            )}
-            {showOwner && item.ownerName && (
-              <span className="rounded-pill border border-border px-2 py-0.5 text-meta text-text-muted">
-                👤 {item.ownerName}
-              </span>
-            )}
-          </div>
-        </div>
+        {offline && (
+          <span className="absolute -bottom-1 -right-1 flex h-[18px] w-[18px] items-center justify-center rounded-full border-2 border-background bg-success text-[11px] leading-none text-white">
+            ✓
+          </span>
+        )}
       </Link>
 
-      {hasProgress && (
-        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-progress-track">
-          <div
-            className="h-full rounded-full bg-accent"
-            style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
-          />
+      <Link href={`/library/${item.id}`} className="min-w-0 flex-1">
+        <p className="truncate text-card-title notranslate" translate="no">
+          {item.title}
+        </p>
+        <p className="mt-0.5 truncate text-meta text-text-muted notranslate" translate="no">
+          {item.channelName ? `${item.channelName} · ` : ""}
+          {[formatDuration(item.duration), item.selectedQuality, formatBytes(item.fileSize)]
+            .filter((part) => part && part !== "-")
+            .join(" · ")}
+        </p>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          {state !== "started" && <MediaStatusBadge state={state} />}
+          {item.isAutomaticallyPrepared && <SourceBadge isAutomatic sourceName={item.sourceName} />}
+          {offline && (
+            <span className="rounded-pill bg-success/15 px-2 py-0.5 text-meta text-success">✓ In der App</span>
+          )}
+          {deviceDownloaded && (
+            <span className="rounded-pill bg-success/15 px-2 py-0.5 text-meta text-success">✓ Auf Gerät</span>
+          )}
+          {showOwner && item.ownerName && (
+            <span className="rounded-pill border border-border px-2 py-0.5 text-meta text-text-muted">
+              👤 {item.ownerName}
+            </span>
+          )}
         </div>
-      )}
+        {hasProgress && (
+          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-progress-track">
+            <div
+              className="h-full rounded-full bg-accent"
+              style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
+            />
+          </div>
+        )}
+      </Link>
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="flex shrink-0 flex-col items-center gap-2">
         <Link
           href={`/library/${item.id}?autoplay=1`}
           aria-label={hasProgress ? "Fortsetzen" : "Abspielen"}
-          className="flex min-h-10 min-w-10 items-center justify-center rounded-md bg-accent text-base text-white"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-sm text-white"
         >
           ▶
         </Link>
         <button
           type="button"
-          aria-label={offline ? "Offline-Kopie in der App entfernen" : "In der App speichern"}
-          disabled={queueStatus === "downloading" || removingOffline}
-          onClick={handleOfflineButtonClick}
-          className={`relative flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base disabled:opacity-50 ${
-            offline ? "border-success bg-success/15 text-success" : "border-border"
-          }`}
+          aria-label="Weitere Aktionen"
+          onClick={() => setMenuOpen(true)}
+          className="flex h-6 w-6 items-center justify-center text-base text-text-muted"
         >
-          {queueStatus !== "idle" ? (
-            <span className="text-xs font-medium">{saveProgressPct !== null ? `${saveProgressPct}%` : "…"}</span>
-          ) : (
-            "⬇"
-          )}
-          {offline && queueStatus === "idle" && (
-            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-success text-[10px] leading-none text-white">
-              ✓
-            </span>
-          )}
-        </button>
-        <button
-          type="button"
-          aria-label={deviceDownloaded ? "Auf Gerät gespeichert - verwalten" : "Auf Gerät speichern"}
-          onClick={handleDeviceButtonClick}
-          className={`relative flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base ${
-            deviceDownloaded ? "border-success bg-success/15 text-success" : "border-border"
-          }`}
-        >
-          📲
-          {deviceDownloaded && (
-            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-success text-[10px] leading-none text-white">
-              ✓
-            </span>
-          )}
+          ⋯
         </button>
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5">
-        <p className="text-meta text-text-muted">
-          Download auf NAS: {formatDate(item.createdAt)}
-          {item.expiresAt ? ` - Läuft ab: ${formatDate(item.expiresAt)}` : ""}
-        </p>
-        <div className="flex flex-wrap gap-1.5">
+      <BottomSheet open={menuOpen} title={item.title} onClose={() => setMenuOpen(false)}>
+        <div className="flex flex-col gap-1">
+          <button
+            type="button"
+            disabled={queueStatus === "downloading" || removingOffline}
+            onClick={() => {
+              setMenuOpen(false);
+              handleOfflineButtonClick();
+            }}
+            className="flex min-h-11 items-center justify-between rounded-xl px-3 text-left text-sm font-medium text-text-primary disabled:opacity-50"
+          >
+            <span>{offline ? "Offline-Kopie in der App entfernen" : "In der App speichern"}</span>
+            {savingInApp && (
+              <span className="text-xs text-text-muted">{saveProgressPct !== null ? `${saveProgressPct}%` : "…"}</span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              handleDeviceButtonClick();
+            }}
+            className="flex min-h-11 items-center rounded-xl px-3 text-left text-sm font-medium text-text-primary"
+          >
+            {deviceDownloaded ? "Auf Gerät gespeichert - verwalten" : "Auf Gerät speichern"}
+          </button>
           {item.originalUrl && (
             <a
               href={item.originalUrl}
               target="_blank"
               rel="noreferrer"
-              className="rounded-md border border-border px-2.5 py-1.5 text-xs font-medium"
+              onClick={() => setMenuOpen(false)}
+              className="flex min-h-11 items-center rounded-xl px-3 text-left text-sm font-medium text-text-primary"
             >
               Original öffnen
             </a>
@@ -264,13 +267,20 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
           <button
             type="button"
             disabled={busy}
-            onClick={() => setShowDeleteConfirm(true)}
-            className="rounded-md border border-error/40 px-2.5 py-1.5 text-xs font-medium text-error disabled:opacity-50"
+            onClick={() => {
+              setMenuOpen(false);
+              setShowDeleteConfirm(true);
+            }}
+            className="flex min-h-11 items-center rounded-xl px-3 text-left text-sm font-medium text-error disabled:opacity-50"
           >
             Von NAS löschen
           </button>
+          <p className="mt-1 px-3 text-meta text-text-muted">
+            Download auf NAS: {formatDate(item.createdAt)}
+            {item.expiresAt ? ` - Läuft ab: ${formatDate(item.expiresAt)}` : ""}
+          </p>
         </div>
-      </div>
+      </BottomSheet>
 
       <ConfirmationDialog
         open={showDeleteConfirm}

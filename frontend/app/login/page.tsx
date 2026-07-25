@@ -29,17 +29,18 @@ export default function LoginPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
       <Image
-        src="/icons/icon-192.png"
+        src="/apple-touch-icon.png"
         alt=""
         width={64}
         height={64}
         className="mx-auto mb-4 h-16 w-16 rounded-2xl"
         priority
+        unoptimized
       />
-      <h1 className="mb-6 text-center text-2xl font-bold">yt-pro Anmeldung</h1>
-      <form onSubmit={submit} className="space-y-3">
-        <div>
-          <label htmlFor="username" className="mb-1 block text-sm font-medium">
+      <h1 className="mb-6 text-center text-page-title">yt-pro Anmeldung</h1>
+      <form onSubmit={submit} className="rounded-2xl border border-border bg-surface p-4">
+        <div className="mb-3">
+          <label htmlFor="username" className="mb-1 block text-sm font-medium text-text-primary">
             Benutzername
           </label>
           <input
@@ -49,11 +50,11 @@ export default function LoginPage() {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
-            className="w-full rounded-lg border border-gray-300 bg-white p-3 dark:border-gray-700 dark:bg-gray-900"
+            className="w-full rounded-xl border border-border bg-background p-3 text-text-primary"
           />
         </div>
-        <div>
-          <label htmlFor="password" className="mb-1 block text-sm font-medium">
+        <div className="mb-3">
+          <label htmlFor="password" className="mb-1 block text-sm font-medium text-text-primary">
             Passwort
           </label>
           <input
@@ -63,14 +64,14 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="w-full rounded-lg border border-gray-300 bg-white p-3 dark:border-gray-700 dark:bg-gray-900"
+            className="w-full rounded-xl border border-border bg-background p-3 text-text-primary"
           />
         </div>
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="mb-3 text-sm text-error">{error}</p>}
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-lg bg-brand px-4 py-3 font-medium text-white disabled:opacity-50 dark:bg-brand-dark dark:text-gray-950"
+          className="w-full rounded-xl bg-accent px-4 py-3 font-semibold text-white disabled:opacity-50"
         >
           {loading ? "Anmelden..." : "Anmelden"}
         </button>

@@ -92,9 +92,9 @@ export function QuickAccessBar({ onPick }: Props) {
       type="button"
       onClick={() => setAdding(true)}
       aria-label="Playlist als Schnellzugriff merken"
-      className="flex aspect-square shrink-0 items-center justify-center self-stretch rounded-md border border-dashed border-border text-lg font-medium leading-none text-text-secondary"
+      className="flex h-9 shrink-0 items-center rounded-pill border border-dashed border-border px-3 text-sm font-medium leading-none text-text-secondary"
     >
-      +
+      + Schnellzugriff
     </button>
   );
 
@@ -104,9 +104,9 @@ export function QuickAccessBar({ onPick }: Props) {
       onClick={() => onPick(lastLink)}
       aria-label="Letzten Link erneut einfügen"
       title={lastLink}
-      className="flex aspect-square shrink-0 items-center justify-center self-stretch rounded-md border border-border bg-surface text-base text-text-secondary"
+      className="flex h-9 shrink-0 items-center gap-1.5 rounded-pill border border-border bg-surface px-3 text-sm text-text-secondary"
     >
-      ↺
+      ↺ Zuletzt verwendet
     </button>
   );
 
@@ -117,7 +117,7 @@ export function QuickAccessBar({ onPick }: Props) {
           {sources.map((source) => (
             <div
               key={source.id}
-              className="relative flex shrink-0 items-center gap-2 rounded-md border border-border bg-surface py-1.5 pl-1.5 pr-2"
+              className="relative flex h-9 shrink-0 items-center gap-2 rounded-pill border border-border bg-surface pl-1.5 pr-2"
             >
               <button
                 type="button"
@@ -131,7 +131,7 @@ export function QuickAccessBar({ onPick }: Props) {
                     width={40}
                     height={40}
                     unoptimized
-                    className="h-9 w-9 shrink-0 rounded object-cover"
+                    className="h-7 w-7 shrink-0 rounded-full object-cover"
                   />
                 )}
                 <span className="max-w-[9rem] truncate text-sm font-medium">{source.name}</span>
@@ -140,7 +140,7 @@ export function QuickAccessBar({ onPick }: Props) {
                 type="button"
                 onClick={() => remove(source.id, source.name)}
                 aria-label={`${source.name} entfernen`}
-                className="flex aspect-square h-9 shrink-0 items-center justify-center rounded text-text-muted hover:text-text-primary"
+                className="flex aspect-square h-7 shrink-0 items-center justify-center rounded-full text-text-muted hover:text-text-primary"
               >
                 ×
               </button>
@@ -154,7 +154,7 @@ export function QuickAccessBar({ onPick }: Props) {
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="min-h-9 rounded-md border border-dashed border-border px-3 py-1.5 text-sm font-medium text-text-secondary"
+            className="flex h-9 items-center rounded-pill border border-dashed border-border px-3 text-sm font-medium text-text-secondary"
           >
             + Playlist als Schnellzugriff merken
           </button>
@@ -173,20 +173,20 @@ export function QuickAccessBar({ onPick }: Props) {
               if (e.key === "Escape") cancelAdd();
             }}
             placeholder="https://youtube.com/playlist?list=..."
-            className="min-h-11 flex-1 rounded-md border border-border bg-surface p-2 text-sm text-text-primary"
+            className="min-h-11 flex-1 rounded-xl border border-border bg-surface p-2 text-sm text-text-primary"
           />
           <button
             type="button"
             onClick={save}
             disabled={saving || !url.trim()}
-            className="min-h-11 rounded-md bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="min-h-11 rounded-xl bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             {saving ? "..." : "Hinzufügen"}
           </button>
           <button
             type="button"
             onClick={cancelAdd}
-            className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-medium"
+            className="min-h-11 rounded-xl border border-border px-3 py-2 text-sm font-medium"
           >
             Abbrechen
           </button>

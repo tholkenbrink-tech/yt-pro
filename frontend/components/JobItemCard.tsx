@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import type { JobItem } from "@/lib/types";
-import { StatusPill } from "./StatusPill";
 import { DownloadCard } from "./DownloadCard";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { api } from "@/lib/api";
@@ -60,51 +58,35 @@ export function JobItemCard({ item, onChanged }: Props) {
     }
   };
 
+  const pct = Math.min(100, Math.max(0, Math.round(item.progress)));
+
   return (
-    <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
-      <div className="flex items-start gap-3">
-        {item.thumbnail && (
-          <Image
-            src={item.thumbnail}
-            alt=""
-            width={80}
-            height={45}
-            unoptimized
-            className="h-[45px] w-20 shrink-0 rounded object-cover"
-          />
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{item.title}</p>
-          <div className="mt-1">
-            <StatusPill status={item.status} />
+    <div className="rounded-[18px] border border-border bg-surface p-3.5">
+      <div className="flex items-center gap-3">
+        <div
+          className="relative h-11 w-11 shrink-0 rounded-full"
+          style={{ background: `conic-gradient(var(--color-accent) ${pct}%, var(--color-progress-track) 0)` }}
+        >
+          <div className="absolute inset-1 flex items-center justify-center rounded-full bg-surface text-[11px] font-bold text-text-primary">
+            {pct}%
           </div>
         </div>
-      </div>
-
-      <div className="mt-3">
-        <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
-          <div
-            className="h-full rounded-full bg-brand transition-all dark:bg-brand-dark"
-            style={{ width: `${Math.min(100, Math.max(0, item.progress))}%` }}
-          />
-        </div>
-        <div className="mt-1 flex flex-wrap justify-between gap-x-3 text-xs text-gray-500 dark:text-gray-400">
-          <span>{item.currentStep ?? ""}</span>
-          <span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-text-primary">{item.title}</p>
+          <p className="mt-0.5 truncate text-meta text-text-muted">
             {formatBytes(item.downloadedBytes)} / {formatBytes(item.estimatedTotalBytes)}
-          </span>
-          <span>{formatSpeed(item.speed)}</span>
-          <span>ETA: {formatEta(item.estimatedRemainingSeconds)}</span>
+            {" · "}
+            {formatSpeed(item.speed)}
+            {" · "}ETA {formatEta(item.estimatedRemainingSeconds)}
+          </p>
         </div>
       </div>
 
       {item.status === "failed" && (
-        <p className="mt-2 text-sm text-red-600 dark:text-red-400">
-          {item.errorMessage || GENERIC_FAILURE_EXPLANATION}
-        </p>
+        <p className="mt-2 text-sm text-error">{item.errorMessage || GENERIC_FAILURE_EXPLANATION}</p>
       )}
 
-      <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+      <p className="mt-2 text-meta text-text-muted">
         Erstellt: {formatDate(item.createdAt)}
         {item.expiresAt ? ` - Läuft ab: ${formatDate(item.expiresAt)}` : ""}
       </p>
@@ -116,7 +98,7 @@ export function JobItemCard({ item, onChanged }: Props) {
               type="button"
               disabled={busy}
               onClick={() => setShowCancelConfirm(true)}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium disabled:opacity-50 dark:border-gray-700"
+              className="rounded-xl border border-border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
             >
               Abbrechen
             </button>
@@ -126,7 +108,7 @@ export function JobItemCard({ item, onChanged }: Props) {
               type="button"
               disabled={busy}
               onClick={doRetry}
-              className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-brand-dark dark:text-gray-950"
+              className="rounded-xl bg-accent px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
             >
               Erneut versuchen
             </button>

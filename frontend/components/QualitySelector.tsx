@@ -15,7 +15,11 @@ export function QualitySelector({ qualities, selected, onSelect }: Props) {
   const hasDefault = qualities.some((q) => q.name === defaultQuality);
   return (
     <div>
-      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Qualität wählen">
+      <div
+        className="flex gap-1.5 rounded-2xl bg-surface-elevated p-1"
+        role="radiogroup"
+        aria-label="Qualität wählen"
+      >
         {qualities.map((q) => {
           const active = q.name === selected;
           return (
@@ -25,24 +29,20 @@ export function QualitySelector({ qualities, selected, onSelect }: Props) {
               role="radio"
               aria-checked={active}
               onClick={() => onSelect(q.name)}
-              className={`rounded-full border px-4 py-2 text-sm font-medium ${
-                active
-                  ? "border-brand bg-brand text-white dark:border-brand-dark dark:bg-brand-dark dark:text-gray-950"
-                  : "border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-200"
+              className={`flex-1 rounded-xl px-2 py-2 text-sm font-medium ${
+                active ? "bg-accent font-semibold text-white" : "text-text-secondary"
               }`}
             >
               {q.label}
               {q.name === defaultQuality && "*"}
               {q.estimatedSize !== undefined && (
-                <span className="ml-1 text-xs opacity-75">
-                  ({formatBytes(q.estimatedSize)})
-                </span>
+                <span className="ml-1 text-xs opacity-75">({formatBytes(q.estimatedSize)})</span>
               )}
             </button>
           );
         })}
       </div>
-      {hasDefault && <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">*Standardauswahl</p>}
+      {hasDefault && <p className="mt-1.5 text-xs text-text-muted">*Standardauswahl</p>}
     </div>
   );
 }

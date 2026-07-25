@@ -273,63 +273,52 @@ export default function VideoPlayerPage() {
         <p className="mt-1 text-meta text-text-muted">Download auf NAS: {formatDate(item.createdAt)}</p>
       )}
 
-      <div className="mt-4 flex items-center gap-2">
+      <div className="mt-4 flex gap-2 rounded-2xl bg-surface-elevated p-1">
         <button
           type="button"
           aria-label={hasOfflineCopy ? "Offline-Kopie in der App entfernen" : "In der App speichern"}
           disabled={queueStatus === "downloading" || removingOffline}
           onClick={handleOfflineButtonClick}
-          className={`relative flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base disabled:opacity-50 ${
-            hasOfflineCopy ? "border-success bg-success/15 text-success" : "border-border"
+          className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13px] font-semibold disabled:opacity-50 ${
+            hasOfflineCopy ? "bg-success/15 text-success" : "text-text-secondary"
           }`}
         >
-          {queueStatus !== "idle" ? (
-            <span className="text-xs font-medium">{saveProgressPct !== null ? `${saveProgressPct}%` : "…"}</span>
-          ) : (
-            "⬇"
-          )}
-          {hasOfflineCopy && queueStatus === "idle" && (
-            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-success text-[10px] leading-none text-white">
-              ✓
-            </span>
-          )}
+          {queueStatus !== "idle"
+            ? saveProgressPct !== null
+              ? `${saveProgressPct}%`
+              : "…"
+            : hasOfflineCopy
+              ? "✓ App"
+              : "In der App"}
         </button>
         <button
           type="button"
           aria-label={deviceDownloaded ? "Auf Gerät gespeichert - verwalten" : "Auf Gerät speichern"}
           onClick={handleDeviceButtonClick}
-          className={`relative flex min-h-10 min-w-10 items-center justify-center rounded-md border text-base ${
-            deviceDownloaded ? "border-success bg-success/15 text-success" : "border-border"
+          className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13px] font-semibold ${
+            deviceDownloaded ? "bg-success/15 text-success" : "text-text-secondary"
           }`}
         >
-          📲
-          {deviceDownloaded && (
-            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-success text-[10px] leading-none text-white">
-              ✓
-            </span>
-          )}
+          {deviceDownloaded ? "✓ Gerät" : "Gerät"}
         </button>
-      </div>
-
-      {item.originalUrl && (
-        <div className="mt-2">
+        {item.originalUrl && (
           <a
             href={item.originalUrl}
             target="_blank"
             rel="noreferrer"
-            className="rounded-md border border-border px-2.5 py-1.5 text-xs font-medium"
+            className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13px] text-text-secondary"
           >
-            Original öffnen
+            🔗 Original
           </a>
-        </div>
-      )}
+        )}
+      </div>
 
-      <div className="mt-8 flex justify-center">
+      <div className="mt-4 text-center">
         <button
           type="button"
           disabled={busy}
           onClick={() => setShowDeleteConfirm(true)}
-          className="rounded-md border border-error/40 px-4 py-2 text-xs font-medium text-error disabled:opacity-50"
+          className="text-xs font-medium text-error disabled:opacity-50"
         >
           Von NAS löschen
         </button>

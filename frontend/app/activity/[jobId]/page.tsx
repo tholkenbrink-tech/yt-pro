@@ -25,10 +25,10 @@ export default function JobProgressPage() {
 
       {job && (
         <>
-          <p className="mb-3 text-meta text-text-muted">
+          <p className="mb-4 text-meta text-text-muted">
             Gestartet: {formatDate(job.createdAt)}
           </p>
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {job.items.map((item) => (
               <JobItemCard key={item.id} item={item} onChanged={refetch} />
             ))}

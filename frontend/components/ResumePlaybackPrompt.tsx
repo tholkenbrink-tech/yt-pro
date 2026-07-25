@@ -18,9 +18,9 @@ export function ResumePlaybackPrompt({ positionLabel, onRestart }: Props) {
       onClick={onRestart}
       title={label}
       aria-label={label}
-      className="flex min-h-11 min-w-11 items-center justify-center rounded-md border border-border bg-surface text-lg text-text-primary"
+      className="flex min-h-8 items-center gap-1.5 rounded-pill bg-accent/15 px-2.5 text-xs font-medium text-accent"
     >
-      ↺
+      ↺ {positionLabel ? `Fortgesetzt bei ${positionLabel}` : "Von vorne starten"}
     </button>
   );
 }

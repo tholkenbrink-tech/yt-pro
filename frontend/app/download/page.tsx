@@ -13,6 +13,7 @@ import {
 } from "@/lib/analysisStore";
 import { getDownloadSettings } from "@/lib/localSettings";
 import { toAnalysisResult } from "@/lib/analyzeTransform";
+import Image from "next/image";
 import { LegalNoticeModal } from "@/components/LegalNoticeModal";
 import { ActiveJobsList } from "@/components/ActiveJobsList";
 import { QualitySelector } from "@/components/QualitySelector";
@@ -105,54 +106,58 @@ export default function DownloadPage() {
   return (
     <main className="mx-auto max-w-lg pb-4 pt-6">
       <LegalNoticeModal />
-      <h1 className="mb-4 px-4 text-page-title">yt-pro</h1>
-
-      <div className="mx-4 mb-3">
-        <label htmlFor="url-input" className="mb-1 block text-sm font-medium">
-          Video- oder Playlist-Link(s)
-        </label>
-        <textarea
-          id="url-input"
-          value={text}
-          onChange={(e) => updateText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              analyze();
-            }
-          }}
-          rows={4}
-          placeholder={"https://youtube.com/watch?v=... oder ARD/ZDF Mediathek-Link\n(mehrere Links = je eine Zeile, Umschalt+Enter für neue Zeile)"}
-          className="w-full rounded-md border border-border bg-surface p-3 text-base text-text-primary"
-        />
+      <div className="mb-4 flex items-center gap-2 px-4">
+        <Image src="/apple-touch-icon.png" alt="" width={26} height={26} className="rounded-lg" unoptimized />
+        <h1 className="text-page-title">yt-pro</h1>
       </div>
 
-      <div className="mx-4 mb-3 flex gap-2">
-        <button
-          type="button"
-          onClick={pasteFromClipboard}
-          className="min-h-11 flex-1 rounded-md border border-border px-4 py-3 font-medium"
+      <div className="mx-4 mb-3.5 rounded-[20px] border border-border bg-surface p-3.5">
+        <label
+          htmlFor="url-input"
+          className="mb-2 block text-[12.5px] font-semibold uppercase tracking-wide text-text-muted"
         >
-          Link einfügen
-        </button>
+          Video- oder Playlist-Link(s)
+        </label>
+        <div className="relative">
+          <textarea
+            id="url-input"
+            value={text}
+            onChange={(e) => updateText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                analyze();
+              }
+            }}
+            rows={2}
+            placeholder={"https://youtube.com/watch?v=... oder ARD/ZDF Mediathek-Link\n(mehrere Links = je eine Zeile, Umschalt+Enter für neue Zeile)"}
+            className="w-full resize-none border-0 bg-transparent pr-8 text-base text-text-primary focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={pasteFromClipboard}
+            aria-label="Link aus Zwischenablage einfügen"
+            className="absolute right-0 top-0 text-lg text-accent"
+          >
+            📋
+          </button>
+        </div>
         <button
           type="button"
           onClick={analyze}
           disabled={loading}
-          className="min-h-11 flex-1 rounded-md bg-accent px-4 py-3 font-medium text-white disabled:opacity-50"
+          className="mt-2.5 min-h-[46px] w-full rounded-2xl bg-accent px-4 font-semibold text-white disabled:opacity-50"
         >
           {loading ? "Analysiere..." : "Analysieren"}
         </button>
       </div>
 
-      <hr className="mx-4 mb-3 border-border" />
-
       {/* Alternative way to fill the box above - pick a saved link instead
-          of pasting one, so it sits right next to "Link einfügen". */}
+          of pasting one, so it sits right next to "Analysieren". */}
       <QuickAccessBar onPick={updateText} />
 
-      <div className="mx-4 mb-3">
-        <h3 className="mb-2 text-sm font-semibold">Qualität</h3>
+      <div className="mx-4 mb-4">
+        <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-text-muted">Qualität</h3>
         <QualitySelector qualities={QUALITY_OPTIONS} selected={quality} onSelect={setQuality} />
       </div>
 
@@ -165,10 +170,10 @@ export default function DownloadPage() {
       {error && <p className="mx-4 mb-3 text-sm text-error">{error}</p>}
 
       {loading && (
-        <div className="mx-4 mb-3 rounded-md border border-border bg-surface p-3" aria-hidden="true">
+        <div className="mx-4 mb-3 rounded-2xl border border-border bg-surface p-3" aria-hidden="true">
           <p className="mb-2 text-sm font-medium text-text-secondary">Video wird analysiert</p>
           <div className="flex items-start gap-3">
-            <Skeleton className="h-[63px] w-28 shrink-0" />
+            <Skeleton className="h-[63px] w-28 shrink-0 rounded-xl" />
             <div className="min-w-0 flex-1 space-y-2">
               <Skeleton className="h-4 w-4/5" />
               <Skeleton className="h-3 w-2/5" />

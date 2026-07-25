@@ -20,11 +20,11 @@ export function BackgroundAudioButton({ active, onActivate }: Props) {
       onClick={onActivate}
       aria-pressed={active}
       aria-label="Beim Verlassen der App: Ton im Hintergrund weiterspielen"
-      className={`flex min-h-11 min-w-11 items-center justify-center rounded-md border ${
-        active ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface text-text-primary"
+      className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border text-[13px] font-medium ${
+        active ? "border-accent bg-accent/10 text-accent" : "border-border text-text-secondary"
       }`}
     >
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M9 6v12l-5-4H2V10h2l5-4z" fill="currentColor" />
         <path
           d="M15.5 8.5a4.5 4.5 0 0 1 0 7M18 6a8 8 0 0 1 0 12"
@@ -33,6 +33,7 @@ export function BackgroundAudioButton({ active, onActivate }: Props) {
           strokeLinecap="round"
         />
       </svg>
+      Ton im Hintergrund
     </button>
   );
 }

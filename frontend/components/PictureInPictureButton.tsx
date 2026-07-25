@@ -156,14 +156,15 @@ export function PictureInPictureButton({ videoRef, active, onActivate, onDeactiv
       onClick={toggle}
       aria-pressed={active}
       aria-label="Bild-in-Bild umschalten"
-      className={`flex min-h-11 min-w-11 items-center justify-center rounded-md border ${
-        active ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface text-text-primary"
+      className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border text-[13px] font-medium ${
+        active ? "border-accent bg-accent/10 text-accent" : "border-border text-text-secondary"
       }`}
     >
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
         <rect x="12" y="11" width="7" height="5" rx="1" fill="currentColor" />
       </svg>
+      Bild-in-Bild
     </button>
   );
 }

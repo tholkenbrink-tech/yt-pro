@@ -88,31 +88,36 @@ const FolderCard = memo(function FolderCard({ group, onOpen }: { group: FolderGr
     <button
       type="button"
       onClick={onOpen}
-      className="rounded-md border border-border bg-surface p-3 text-left"
+      className="flex items-center gap-3 rounded-2xl p-2.5 text-left transition-colors hover:bg-surface"
     >
-      <div className="flex items-start gap-3">
+      <div className="relative h-[74px] w-[74px] shrink-0">
+        <div className="absolute left-1.5 top-1.5 h-full w-full rounded-xl bg-surface-elevated" aria-hidden="true" />
         {group.thumbnail && !thumbnailFailed ? (
           <Image
             src={group.thumbnail}
             alt=""
-            width={112}
-            height={63}
+            width={74}
+            height={74}
             unoptimized
             onError={() => setThumbnailFailed(true)}
-            className="h-[63px] w-28 shrink-0 rounded object-cover"
+            className="absolute inset-0 h-[74px] w-[74px] rounded-xl border border-border object-cover"
           />
         ) : (
-          <div className="flex h-[63px] w-28 shrink-0 items-center justify-center rounded bg-surface-elevated text-lg text-text-muted">
+          <div className="absolute inset-0 flex h-[74px] w-[74px] items-center justify-center rounded-xl border border-border bg-surface-elevated text-lg text-text-muted">
             🎬
           </div>
         )}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-card-title">
-            📁 <span className="notranslate" translate="no">{group.label}</span>
-          </p>
-          <p className="mt-1 text-meta text-text-muted">{group.items.length} Videos</p>
-        </div>
+        <span className="absolute -bottom-1 -right-1 rounded-pill border-2 border-background bg-accent px-1.5 text-[10px] font-bold leading-[18px] text-white">
+          {group.items.length}
+        </span>
       </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-card-title notranslate" translate="no">
+          {group.label}
+        </p>
+        <p className="mt-0.5 text-meta text-text-muted">{group.items.length} Videos · Playlist</p>
+      </div>
+      <span className="shrink-0 text-lg text-text-muted">›</span>
     </button>
   );
 });
@@ -193,6 +198,10 @@ export default function LibraryPage() {
 
   const { standalone, groups } = useMemo(() => groupItems(items), [items]);
   const activeGroup = groups.find((g) => g.key === openFolder) ?? null;
+  const continueWatching = useMemo(
+    () => items.filter((i) => i.progress && !i.progress.completed && i.progress.positionSeconds > 0),
+    [items]
+  );
 
   const sort = query.sort ?? "date_desc";
   const status = query.status ?? "";
@@ -210,65 +219,80 @@ export default function LibraryPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 pb-4 pt-6">
-      <h1 className="mb-4 text-page-title">Mediathek</h1>
-
-      <div className="flex gap-2">
-        <div className="relative min-h-11 flex-1">
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && load()}
-            placeholder="Titel, Kanal oder Quelle suchen..."
-            aria-label="Mediathek durchsuchen"
-            className="min-h-11 w-full rounded-md border border-border bg-surface p-2 pr-11 text-text-primary"
-          />
-          <button
-            type="button"
-            onClick={load}
-            aria-label="Suchen"
-            className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-text-secondary"
-          >
-            🔍
-          </button>
+      <div className="mb-3.5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Image src="/apple-touch-icon.png" alt="" width={26} height={26} className="rounded-lg" unoptimized />
+          <h1 className="text-page-title">Mediathek</h1>
         </div>
-
         <button
           type="button"
           onClick={() => setFilterSheetOpen(true)}
           aria-label="Filter und Sortierung öffnen"
-          className="relative min-h-11 min-w-11 shrink-0 rounded-md border border-border bg-surface text-text-secondary"
+          className="relative flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl border border-border text-text-secondary"
         >
-          <span className="mx-auto flex h-full w-full items-center justify-center">
-            <FilterIcon />
-          </span>
+          <FilterIcon />
           {hasActiveFilters && (
             <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-accent" />
           )}
         </button>
       </div>
 
+      <div className="relative mb-3.5 min-h-11">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && load()}
+          placeholder="Titel, Kanal oder Quelle suchen..."
+          aria-label="Mediathek durchsuchen"
+          className="min-h-11 w-full rounded-2xl border border-border bg-surface p-2 pr-11 text-text-primary"
+        />
+        <button
+          type="button"
+          onClick={load}
+          aria-label="Suchen"
+          className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl text-text-secondary"
+        >
+          🔍
+        </button>
+      </div>
+
+      <div className="mb-4 flex gap-1.5">
+        {OVERVIEW_FILTERS.map((opt) => {
+          const active = status === opt.value;
+          return (
+            <button
+              key={opt.value || "all"}
+              type="button"
+              onClick={() => setQuery((q) => ({ ...q, status: opt.value || undefined }))}
+              className={`rounded-xl px-3 py-1.5 text-[12.5px] font-semibold ${
+                active ? "bg-accent text-white" : "border border-border text-text-secondary"
+              }`}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+
       <button
         type="button"
         onClick={() => setFilterSheetOpen(true)}
-        className="mb-4 mt-2 block text-left text-meta text-text-muted"
+        className="mb-4 -mt-2 block text-left text-meta text-text-muted"
       >
         {summaryLine}
       </button>
 
       {loading && (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3" aria-hidden="true">
+        <div className="grid grid-cols-1 gap-1 md:grid-cols-2" aria-hidden="true">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="rounded-md border border-border bg-surface p-3">
-              <div className="flex items-start gap-3">
-                <Skeleton className="h-[63px] w-28 shrink-0" />
-                <div className="min-w-0 flex-1 space-y-2">
-                  <Skeleton className="h-4 w-4/5" />
-                  <Skeleton className="h-3 w-2/5" />
-                  <Skeleton className="h-3 w-3/5" />
-                </div>
+            <div key={i} className="flex items-start gap-3 p-2.5">
+              <Skeleton className="h-[74px] w-[74px] shrink-0 rounded-xl" />
+              <div className="min-w-0 flex-1 space-y-2 pt-1">
+                <Skeleton className="h-4 w-4/5" />
+                <Skeleton className="h-3 w-2/5" />
+                <Skeleton className="h-3 w-3/5" />
               </div>
-              <Skeleton className="mt-3 h-9 w-1/2" />
             </div>
           ))}
         </div>
@@ -280,14 +304,14 @@ export default function LibraryPage() {
         </p>
       )}
       {!loading && items.length === 0 && !error && !offlineOnly && (
-        <div className="rounded-md border border-border bg-surface p-6 text-center">
+        <div className="rounded-2xl border border-border bg-surface p-6 text-center">
           <p className="text-sm font-medium text-text-primary">Noch keine Videos vorbereitet</p>
           <p className="mt-1 text-sm text-text-muted">
             Fertige Videos werden hier angezeigt und können auf dein iPhone geladen werden.
           </p>
           <Link
             href="/download"
-            className="mt-4 inline-flex min-h-11 items-center justify-center rounded-md bg-brand px-4 py-3 font-medium text-white dark:bg-brand-dark dark:text-gray-950"
+            className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-accent px-4 py-3 font-medium text-white"
           >
             Jetzt YouTube-Video herunterladen
           </Link>
@@ -299,12 +323,12 @@ export default function LibraryPage() {
           <button
             type="button"
             onClick={() => setOpenFolder(null)}
-            className="mb-3 min-h-11 rounded-md border border-border px-3 py-2 text-sm font-medium"
+            className="mb-3 min-h-11 rounded-xl border border-border px-3 py-2 text-sm font-medium"
           >
             ← Zurück zur Mediathek
           </button>
           <h2 className="mb-3 text-card-title">📁 {activeGroup.label}</h2>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-1 md:grid-cols-2">
             {activeGroup.items.map((item) => (
               <MediaCard key={item.id} item={item} onChanged={load} showOwner={query.userId === "all" || (Boolean(query.userId) && query.userId !== selfId)} />
             ))}
@@ -313,14 +337,59 @@ export default function LibraryPage() {
       )}
 
       {!loading && !activeGroup && items.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {groups.map((group) => (
-            <FolderCard key={group.key} group={group} onOpen={() => setOpenFolder(group.key)} />
-          ))}
-          {standalone.map((item) => (
-            <MediaCard key={item.id} item={item} onChanged={load} showOwner={query.userId === "all" || (Boolean(query.userId) && query.userId !== selfId)} />
-          ))}
-        </div>
+        <>
+          {continueWatching.length > 0 && (
+            <div className="mb-5">
+              <p className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-text-muted">
+                Weiter ansehen
+              </p>
+              <div className="flex gap-2.5 overflow-x-auto pb-1">
+                {continueWatching.map((item) => (
+                  <Link key={item.id} href={`/library/${item.id}`} className="w-[150px] shrink-0">
+                    <div className="relative h-[84px] w-[150px] overflow-hidden rounded-xl bg-surface-elevated">
+                      {item.thumbnailPath ? (
+                        <Image
+                          src={item.thumbnailPath}
+                          alt=""
+                          width={150}
+                          height={84}
+                          unoptimized
+                          className="h-[84px] w-[150px] object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-lg text-text-muted">🎬</div>
+                      )}
+                      <div className="absolute inset-x-0 bottom-0 h-1 bg-black/40">
+                        <div
+                          className="h-full bg-accent"
+                          style={{ width: `${Math.min(100, Math.max(0, item.progress?.percentage ?? 0))}%` }}
+                        />
+                      </div>
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/15 text-lg text-white">
+                        ▶
+                      </div>
+                    </div>
+                    <p className="mt-1.5 w-[150px] truncate text-[12.5px] text-text-primary notranslate" translate="no">
+                      {item.title}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(groups.length > 0 || standalone.length > 0) && (
+            <p className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-text-muted">Bibliothek</p>
+          )}
+          <div className="grid grid-cols-1 gap-1 md:grid-cols-2">
+            {groups.map((group) => (
+              <FolderCard key={group.key} group={group} onOpen={() => setOpenFolder(group.key)} />
+            ))}
+            {standalone.map((item) => (
+              <MediaCard key={item.id} item={item} onChanged={load} showOwner={query.userId === "all" || (Boolean(query.userId) && query.userId !== selfId)} />
+            ))}
+          </div>
+        </>
       )}
 
       <FilterSheet

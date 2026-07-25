@@ -31,7 +31,7 @@ export default function SourcesPage() {
         <Link
           href="/settings/sources/new"
           aria-label="Neue Quelle"
-          className="flex min-h-11 min-w-11 items-center justify-center rounded-md bg-accent px-3 py-2 text-sm font-medium text-white"
+          className="flex h-[38px] w-[38px] items-center justify-center rounded-xl bg-accent text-lg font-medium text-white"
         >
           +
         </Link>
@@ -45,7 +45,7 @@ export default function SourcesPage() {
         </p>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-1">
         {sources.map((source) => (
           <AutomatedSourceCard key={source.id} source={source} onChanged={load} />
         ))}

@@ -16,6 +16,7 @@ import type { AnalysisResult } from "@/lib/types";
 import { QualitySelector } from "@/components/QualitySelector";
 import { PlaylistItemList } from "@/components/PlaylistItemList";
 import { BottomActionBar } from "@/components/BottomActionBar";
+import { Switch } from "@/components/Switch";
 import { useToast } from "@/components/ToastProvider";
 import { formatBytes, formatDate, formatDuration } from "@/lib/format";
 
@@ -183,7 +184,7 @@ export default function DownloadPreviewPage() {
               width={640}
               height={360}
               unoptimized
-              className="w-full rounded-md object-cover"
+              className="w-full rounded-2xl object-cover"
             />
             <h2 className="mt-3 text-card-title">{result.title}</h2>
             <p className="text-sm text-text-secondary">
@@ -210,7 +211,7 @@ export default function DownloadPreviewPage() {
               width={640}
               height={360}
               unoptimized
-              className="w-full rounded-md object-cover"
+              className="w-full rounded-2xl object-cover"
             />
             <h2 className="mt-3 text-card-title">{result.playlistTitle}</h2>
             <p className="text-sm text-text-secondary">
@@ -219,7 +220,7 @@ export default function DownloadPreviewPage() {
             </p>
 
             {showPlaylistWarning && (
-              <p className="mt-3 rounded-md bg-warning/10 p-3 text-sm text-warning">
+              <p className="mt-3 rounded-xl bg-warning/10 p-3 text-sm text-warning">
                 Diese Playlist ist groß. Das Herunterladen aller Videos kann
                 lange dauern und viel Speicherplatz belegen.
               </p>
@@ -237,21 +238,16 @@ export default function DownloadPreviewPage() {
               <button
                 type="button"
                 onClick={allSelected ? deselectAll : selectAll}
-                className="min-h-11 rounded-md px-2 text-sm font-medium text-accent"
+                className="min-h-11 rounded-xl px-2 text-sm font-medium text-accent"
               >
                 {allSelected ? "Alle abwählen" : "Alle auswählen"}
               </button>
             </div>
             {result.items.some((i) => i.alreadyDownloaded) && (
-              <label className="mb-2 flex items-center gap-2 text-sm text-text-secondary">
-                <input
-                  type="checkbox"
-                  checked={hideAlreadyDownloaded}
-                  onChange={(e) => setHideAlreadyDownloaded(e.target.checked)}
-                  className="h-4 w-4 accent-brand dark:accent-brand-dark"
-                />
-                Bereits heruntergeladene ausblenden
-              </label>
+              <div className="mb-2 flex items-center justify-between text-sm text-text-secondary">
+                <span>Bereits heruntergeladene ausblenden</span>
+                <Switch checked={hideAlreadyDownloaded} onChange={setHideAlreadyDownloaded} label="Bereits heruntergeladene ausblenden" />
+              </div>
             )}
             <PlaylistItemList
               items={result.items}
@@ -276,7 +272,7 @@ export default function DownloadPreviewPage() {
           type="button"
           onClick={startPreparation}
           disabled={submitting || (result.kind === "playlist" && selectedIds.size === 0)}
-          className="min-h-11 w-full rounded-md bg-accent px-4 py-3 font-medium text-white disabled:opacity-50"
+          className="min-h-11 w-full rounded-2xl bg-accent px-4 py-3 font-semibold text-white disabled:opacity-50"
         >
           {submitting
             ? "Wird gestartet..."

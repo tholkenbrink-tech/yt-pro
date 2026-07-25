@@ -8,9 +8,34 @@ import {
   type DownloadSettings,
 } from "@/lib/localSettings";
 import { useToast } from "@/components/ToastProvider";
+import { Switch } from "@/components/Switch";
 
 const QUALITIES = ["original", "1080p", "720p", "480p"];
 const QUALITY_LABELS: Record<string, string> = { original: "Original" };
+
+function SettingRow({
+  label,
+  description,
+  checked,
+  onChange,
+  last,
+}: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  last?: boolean;
+}) {
+  return (
+    <div className={`px-3.5 py-2.5 ${last ? "" : "border-b border-border"}`}>
+      <div className="flex min-h-6 items-center justify-between gap-3">
+        <span className="text-sm font-medium text-text-primary">{label}</span>
+        <Switch checked={checked} onChange={onChange} label={label} />
+      </div>
+      {description && <p className="mt-1 text-meta text-text-muted">{description}</p>}
+    </div>
+  );
+}
 
 export default function DownloadSettingsPage() {
   const [settings, setSettings] = useState<DownloadSettings>(DEFAULT_DOWNLOAD_SETTINGS);
@@ -31,100 +56,87 @@ export default function DownloadSettingsPage() {
     <main className="mx-auto max-w-lg px-4 pb-4 pt-6">
       <h1 className="mb-4 text-page-title">Download Einstellung</h1>
 
-      <label htmlFor="default-quality" className="mb-1 block text-sm font-medium">
+      <p className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-wide text-text-muted">
         Standardqualität
-      </label>
-      <select
-        id="default-quality"
-        value={settings.defaultQuality}
-        onChange={(e) => update({ defaultQuality: e.target.value })}
-        className="mb-4 min-h-11 w-full rounded-md border border-border bg-surface p-2 text-text-primary"
-      >
-        {QUALITIES.map((q) => (
-          <option key={q} value={q}>
-            {QUALITY_LABELS[q] ?? q}
-          </option>
-        ))}
-      </select>
+      </p>
+      <div className="mb-5 flex gap-1.5 rounded-2xl bg-surface-elevated p-1">
+        {QUALITIES.map((q) => {
+          const active = settings.defaultQuality === q;
+          return (
+            <button
+              key={q}
+              type="button"
+              onClick={() => update({ defaultQuality: q })}
+              className={`flex-1 rounded-xl px-2 py-2 text-sm font-medium ${
+                active ? "bg-accent font-semibold text-white" : "text-text-secondary"
+              }`}
+            >
+              {QUALITY_LABELS[q] ?? q}
+            </button>
+          );
+        })}
+      </div>
 
-      <label className="mb-4 flex min-h-11 items-center justify-between">
-        <span className="text-sm font-medium">Letzte Auswahl merken</span>
-        <input
-          type="checkbox"
+      <div className="mb-5 overflow-hidden rounded-2xl border border-border bg-surface">
+        <SettingRow
+          label="Letzte Auswahl merken"
           checked={settings.rememberLastSelection}
-          onChange={(e) => update({ rememberLastSelection: e.target.checked })}
-          className="h-5 w-5 accent-accent"
+          onChange={(v) => update({ rememberLastSelection: v })}
         />
-      </label>
-
-      <label className="mb-4 flex min-h-11 items-center justify-between">
-        <span className="text-sm font-medium">Playlist: standardmäßig alle auswählen</span>
-        <input
-          type="checkbox"
+        <SettingRow
+          label="Playlist: standardmäßig alle auswählen"
           checked={settings.playlistSelectAllByDefault}
-          onChange={(e) => update({ playlistSelectAllByDefault: e.target.checked })}
-          className="h-5 w-5 accent-accent"
+          onChange={(v) => update({ playlistSelectAllByDefault: v })}
         />
-      </label>
-
-      <label className="mb-1 flex min-h-11 items-center justify-between">
-        <span className="text-sm font-medium">Nur im WLAN auf Gerät laden</span>
-        <input
-          type="checkbox"
+        <SettingRow
+          label="Nur im WLAN auf Gerät laden"
+          description={
+            'Gilt nur für den Geräte-Download bei "Herunterladen" (Speichern in Dateien/andere Apps) - die Offline-Kopie in der App selbst ist davon nie betroffen. Safari kann WLAN nicht zuverlässig von Mobilfunk unterscheiden, daher fragt die App in dem Fall einmal nach.'
+          }
           checked={settings.wifiOnlyDeviceDownload}
-          onChange={(e) => update({ wifiOnlyDeviceDownload: e.target.checked })}
-          className="h-5 w-5 accent-accent"
+          onChange={(v) => update({ wifiOnlyDeviceDownload: v })}
         />
-      </label>
-      <p className="mb-4 text-meta text-text-muted">
-        Gilt nur für den Geräte-Download bei &quot;Herunterladen&quot; (Speichern in
-        Dateien/andere Apps) - die Offline-Kopie in der App selbst ist davon
-        nie betroffen. Safari kann WLAN nicht zuverlässig von Mobilfunk
-        unterscheiden, daher fragt die App in dem Fall einmal nach.
-      </p>
-
-      <label className="mb-1 flex min-h-11 items-center justify-between">
-        <span className="text-sm font-medium">Nur im WLAN herunterladen</span>
-        <input
-          type="checkbox"
+        <SettingRow
+          label="Nur im WLAN herunterladen"
+          description={
+            'Gilt für das Speichern "In der App" - dabei wird das Video tatsächlich über das Netzwerk geladen. Ohne WLAN wird der Download nicht gestartet.'
+          }
           checked={settings.wifiOnlyDownload}
-          onChange={(e) => update({ wifiOnlyDownload: e.target.checked })}
-          className="h-5 w-5 accent-accent"
+          onChange={(v) => update({ wifiOnlyDownload: v })}
         />
-      </label>
-      <p className="mb-4 text-meta text-text-muted">
-        Gilt für das Speichern &quot;In der App&quot; - dabei wird das Video tatsächlich
-        über das Netzwerk geladen. Ohne WLAN wird der Download nicht
-        gestartet.
-      </p>
-
-      <label className="mb-1 flex min-h-11 items-center justify-between">
-        <span className="text-sm font-medium">Nur im WLAN streamen</span>
-        <input
-          type="checkbox"
+        <SettingRow
+          label="Nur im WLAN streamen"
+          description="Verhindert das Abspielen über Mobilfunk. Bereits offline gespeicherte Videos sind davon nicht betroffen und lassen sich weiterhin ohne WLAN ansehen."
           checked={settings.wifiOnlyStreaming}
-          onChange={(e) => update({ wifiOnlyStreaming: e.target.checked })}
-          className="h-5 w-5 accent-accent"
+          onChange={(v) => update({ wifiOnlyStreaming: v })}
+          last
         />
-      </label>
-      <p className="mb-4 text-meta text-text-muted">
-        Verhindert das Abspielen über Mobilfunk. Bereits offline gespeicherte
-        Videos sind davon nicht betroffen und lassen sich weiterhin ohne WLAN
-        ansehen.
-      </p>
+      </div>
 
-      <label htmlFor="parallel-downloads" className="mb-1 block text-sm font-medium">
+      <p className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-wide text-text-muted">
         Parallele Downloads
-      </label>
-      <input
-        id="parallel-downloads"
-        type="number"
-        min={1}
-        max={5}
-        value={settings.parallelDownloads}
-        onChange={(e) => update({ parallelDownloads: Number(e.target.value) })}
-        className="mb-4 min-h-11 w-full rounded-md border border-border bg-surface p-2 text-text-primary"
-      />
+      </p>
+      <div className="mb-5 flex items-center justify-between rounded-2xl border border-border bg-surface px-3.5 py-1.5">
+        <button
+          type="button"
+          aria-label="Weniger parallele Downloads"
+          disabled={settings.parallelDownloads <= 1}
+          onClick={() => update({ parallelDownloads: Math.max(1, settings.parallelDownloads - 1) })}
+          className="flex h-8 w-8 items-center justify-center rounded-xl bg-surface-elevated text-base text-text-primary disabled:opacity-40"
+        >
+          −
+        </button>
+        <span className="text-[15px] font-semibold text-text-primary">{settings.parallelDownloads}</span>
+        <button
+          type="button"
+          aria-label="Mehr parallele Downloads"
+          disabled={settings.parallelDownloads >= 5}
+          onClick={() => update({ parallelDownloads: Math.min(5, settings.parallelDownloads + 1) })}
+          className="flex h-8 w-8 items-center justify-center rounded-xl bg-surface-elevated text-base text-text-primary disabled:opacity-40"
+        >
+          +
+        </button>
+      </div>
 
       <p className="text-meta text-text-muted">
         Hinweis: iOS Safari bietet keine zuverlässige API zur Erkennung von

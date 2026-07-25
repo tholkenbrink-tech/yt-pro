@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import type { JobItem } from "@/lib/types";
 import { api } from "@/lib/api";
 import { formatBytes, formatCountdown, formatDuration } from "@/lib/format";
@@ -9,6 +10,7 @@ import { conversionNoteLabel } from "@/lib/statusLabels";
 import { IOSSaveInstructions, SEEN_INSTRUCTIONS_KEY } from "./IOSSaveInstructions";
 import { DeviceFileInstructions } from "./DeviceFileInstructions";
 import { ConfirmationDialog } from "./ConfirmationDialog";
+import { BottomSheet } from "./BottomSheet";
 import { useToast } from "./ToastProvider";
 import { isOffline, removeOffline, saveOfflineInApp, triggerDeviceDownload } from "@/lib/offlineStore";
 import {
@@ -35,6 +37,7 @@ export function DownloadCard({ item, onChanged }: Props) {
   const [showDeviceInstructions, setShowDeviceInstructions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRemoveOfflineConfirm, setShowRemoveOfflineConfirm] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [offline, setOffline] = useState(false);
   const [deviceDownloaded, setDeviceDownloaded] = useState(false);
@@ -156,104 +159,125 @@ export function DownloadCard({ item, onChanged }: Props) {
     }
   };
 
+  const savingInApp = queueStatus !== "idle";
+
   return (
-    <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
-      <div className="flex items-start gap-3">
-        {item.thumbnail && (
+    <div className="rounded-[18px] border border-border bg-surface p-3.5">
+      <div className="flex items-center gap-3">
+        {item.thumbnail ? (
           <Image
             src={item.thumbnail}
             alt=""
-            width={80}
-            height={45}
+            width={44}
+            height={44}
             unoptimized
-            className="h-[45px] w-20 shrink-0 rounded object-cover"
+            className="h-11 w-11 shrink-0 rounded-xl object-cover"
           />
+        ) : (
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-elevated text-text-muted">
+            🎬
+          </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{item.title}</p>
-          {item.channelName && (
-            <p className="truncate text-xs text-gray-500 dark:text-gray-400">
-              {item.channelName}
-            </p>
-          )}
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {formatDuration(item.duration)} - {item.selectedQuality} -{" "}
-            {formatBytes(item.finalFileSize)}
-            {item.finalFormat ? ` - ${item.finalFormat.toUpperCase()}` : ""}
+          <p className="truncate text-sm font-semibold text-text-primary">{item.title}</p>
+          <p className="truncate text-meta text-text-muted">
+            {conversionNoteLabel(item.conversionNote)} · bereit
           </p>
         </div>
-      </div>
-
-      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-        {conversionNoteLabel(item.conversionNote)}
-      </p>
-      {item.expiresAt && (
-        <p className="text-xs text-amber-600 dark:text-amber-400">
-          {formatCountdown(item.expiresAt)}
-        </p>
-      )}
-
-      <div className="mt-3 flex gap-2">
+        <Link
+          href={`/library/${item.id}`}
+          aria-label="Abspielen"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-sm text-white"
+        >
+          ▶
+        </Link>
         <button
           type="button"
-          disabled={queueStatus === "downloading" || removingOffline}
-          onClick={handleOfflineButtonClick}
-          className={`flex-1 rounded-lg px-4 py-3 text-center text-sm font-medium active:opacity-80 disabled:opacity-50 ${
-            offline
-              ? "border border-success bg-success/15 text-success"
-              : "bg-brand text-white dark:bg-brand-dark dark:text-gray-950"
-          }`}
+          aria-label="Weitere Aktionen"
+          onClick={() => setMenuOpen(true)}
+          className="flex h-8 w-6 shrink-0 items-center justify-center text-base text-text-muted"
         >
-          {removingOffline
-            ? "Wird entfernt..."
-            : queueStatus === "downloading"
-              ? saveProgressPct !== null
-                ? `${saveProgressPct}%`
-                : "…"
-              : queueStatus === "queued"
+          ⋯
+        </button>
+      </div>
+
+      {item.expiresAt && (
+        <p className="mt-2 text-meta text-warning">{formatCountdown(item.expiresAt)}</p>
+      )}
+
+      <BottomSheet open={menuOpen} title={item.title} onClose={() => setMenuOpen(false)}>
+        <div className="flex flex-col gap-1">
+          <p className="px-3 pb-1 text-meta text-text-muted">
+            {item.channelName ? `${item.channelName} · ` : ""}
+            {[formatDuration(item.duration), item.selectedQuality, formatBytes(item.finalFileSize)]
+              .filter(Boolean)
+              .join(" · ")}
+            {item.finalFormat ? ` · ${item.finalFormat.toUpperCase()}` : ""}
+          </p>
+          <button
+            type="button"
+            disabled={queueStatus === "downloading" || removingOffline}
+            onClick={() => {
+              setMenuOpen(false);
+              handleOfflineButtonClick();
+            }}
+            className="flex min-h-11 items-center justify-between rounded-xl px-3 text-left text-sm font-medium text-text-primary disabled:opacity-50"
+          >
+            <span>
+              {queueStatus === "queued"
                 ? "In Warteschlange - abbrechen"
                 : offline
                   ? "In der App - entfernen"
                   : "In der App speichern"}
-        </button>
-        <button
-          type="button"
-          onClick={handleDeviceButtonClick}
-          className={`flex-1 rounded-lg px-4 py-3 text-center text-sm font-medium active:opacity-80 ${
-            deviceDownloaded
-              ? "border border-success bg-success/15 text-success"
-              : "border border-gray-300 dark:border-gray-700"
-          }`}
-        >
-          {deviceDownloaded ? "Auf Gerät - verwalten" : "Auf Gerät speichern"}
-        </button>
-      </div>
-      <button
-        type="button"
-        onClick={() => setShowInstructions(true)}
-        className="mt-1.5 block w-full text-center text-xs font-medium text-brand underline dark:text-brand-dark"
-      >
-        Wie finde ich die Datei danach?
-      </button>
-
-      <div className="mt-2 flex gap-2">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={recreate}
-          className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium disabled:opacity-50 dark:border-gray-700"
-        >
-          Erneut erstellen
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => setShowDeleteConfirm(true)}
-          className="flex-1 rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 disabled:opacity-50 dark:border-red-900 dark:text-red-400"
-        >
-          Von NAS löschen
-        </button>
-      </div>
+            </span>
+            {savingInApp && (
+              <span className="text-xs text-text-muted">{saveProgressPct !== null ? `${saveProgressPct}%` : "…"}</span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              handleDeviceButtonClick();
+            }}
+            className="flex min-h-11 items-center rounded-xl px-3 text-left text-sm font-medium text-text-primary"
+          >
+            {deviceDownloaded ? "Auf Gerät - verwalten" : "Auf Gerät speichern"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              setShowInstructions(true);
+            }}
+            className="flex min-h-11 items-center rounded-xl px-3 text-left text-sm font-medium text-text-primary"
+          >
+            Wie finde ich die Datei danach?
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setMenuOpen(false);
+              recreate();
+            }}
+            className="flex min-h-11 items-center rounded-xl px-3 text-left text-sm font-medium text-text-primary disabled:opacity-50"
+          >
+            Erneut erstellen
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setMenuOpen(false);
+              setShowDeleteConfirm(true);
+            }}
+            className="flex min-h-11 items-center rounded-xl px-3 text-left text-sm font-medium text-error disabled:opacity-50"
+          >
+            Von NAS löschen
+          </button>
+        </div>
+      </BottomSheet>
 
       {showInstructions && (
         <IOSSaveInstructions onClose={() => setShowInstructions(false)} />

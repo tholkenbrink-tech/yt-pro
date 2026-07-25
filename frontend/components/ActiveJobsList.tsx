@@ -49,29 +49,36 @@ export function ActiveJobsList() {
 
   return (
     <div className="mx-4 mb-4">
-      <h2 className="mb-2 text-sm font-semibold text-gray-500 dark:text-gray-400">
-        Laufende Vorgänge
+      <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-text-muted">
+        Läuft
       </h2>
       <ul className="space-y-2">
-        {jobs.map((job) => (
-          <li key={job.jobId}>
-            <Link
-              href={`/activity/${job.jobId}`}
-              className="block rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-800"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate pr-2">{jobDisplayName(job)}</span>
-                <StatusPill status={job.status} />
-              </div>
-              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
+        {jobs.map((job) => {
+          const pct = Math.min(100, Math.max(0, Math.round(job.progress)));
+          return (
+            <li key={job.jobId}>
+              <Link
+                href={`/activity/${job.jobId}`}
+                className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-3"
+              >
                 <div
-                  className="h-full rounded-full bg-brand transition-all dark:bg-brand-dark"
-                  style={{ width: `${Math.min(100, Math.max(0, job.progress))}%` }}
-                />
-              </div>
-            </Link>
-          </li>
-        ))}
+                  className="relative h-11 w-11 shrink-0 rounded-full"
+                  style={{ background: `conic-gradient(var(--color-accent) ${pct}%, var(--color-progress-track) 0)` }}
+                >
+                  <div className="absolute inset-1 flex items-center justify-center rounded-full bg-surface text-[11px] font-bold text-text-primary">
+                    {pct}%
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-text-primary">{jobDisplayName(job)}</p>
+                  <p className="mt-0.5 truncate text-meta text-text-muted">
+                    <StatusPill status={job.status} />
+                  </p>
+                </div>
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

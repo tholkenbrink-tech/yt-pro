@@ -43,6 +43,22 @@ export function isActiveStatus(status: JobStatus): boolean {
   return ACTIVE_STATUSES.includes(status);
 }
 
+export type StatusTone = "success" | "error" | "neutral" | "info";
+
+const STATUS_TONES: Partial<Record<JobStatus, StatusTone>> = {
+  ready: "success",
+  downloaded_to_device: "success",
+  failed: "error",
+  cancelled: "neutral",
+  expired: "neutral",
+};
+
+/** Shared status -> tone mapping used by StatusPill and the Aktivität
+ * timeline's left accent bar / status dot so both stay in sync. */
+export function statusTone(status: JobStatus): StatusTone {
+  return STATUS_TONES[status] ?? "info";
+}
+
 export const CONVERSION_NOTE_LABELS: Record<string, string> = {
   no_conversion: "Keine Konvertierung nötig",
   merged_only: "Audio und Video wurden zusammengeführt",
