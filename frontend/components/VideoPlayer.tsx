@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { formatDuration } from "@/lib/format";
 import { type BackgroundPlaybackMode, getPlayerSettings, setPlayerSettings } from "@/lib/playerSettings";
 import { getOfflineBlob } from "@/lib/offlineStore";
+import { useDownloadQueueStatus } from "@/lib/downloadQueueStore";
 import { BackgroundAudioButton } from "./BackgroundAudioButton";
 import { PictureInPictureButton } from "./PictureInPictureButton";
 import { ResumePlaybackPrompt } from "./ResumePlaybackPrompt";
@@ -36,6 +37,7 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
   const [src, setSrc] = useState<string>(() => api.streamUrl(itemId));
   const [isOfflineSource, setIsOfflineSource] = useState(false);
   const [isBuffering, setIsBuffering] = useState(true);
+  const offlineObjectUrlRef = useRef<string | null>(null);
   const [backgroundPlaybackMode, setBackgroundPlaybackMode] = useState<BackgroundPlaybackMode>(
     () => settingsRef.current.backgroundPlaybackMode
   );
@@ -81,15 +83,19 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
 
   useEffect(() => {
     let cancelled = false;
-    let objectUrl: string | null = null;
     setSrc(api.streamUrl(itemId));
     setIsOfflineSource(false);
     setIsBuffering(true);
+    if (offlineObjectUrlRef.current) {
+      URL.revokeObjectURL(offlineObjectUrlRef.current);
+      offlineObjectUrlRef.current = null;
+    }
 
     getOfflineBlob(itemId)
       .then((blob) => {
         if (cancelled || !blob) return;
-        objectUrl = URL.createObjectURL(blob);
+        const objectUrl = URL.createObjectURL(blob);
+        offlineObjectUrlRef.current = objectUrl;
         setSrc(objectUrl);
         setIsOfflineSource(true);
       })
@@ -99,9 +105,58 @@ export function VideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }:
 
     return () => {
       cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (offlineObjectUrlRef.current) {
+        URL.revokeObjectURL(offlineObjectUrlRef.current);
+        offlineObjectUrlRef.current = null;
+      }
     };
   }, [itemId]);
+
+  // If an in-app download for this video finishes while it's already
+  // streaming, switch playback over to the local copy right away instead of
+  // waiting for the next time this video is opened - the point of "in-app
+  // download" is to stop depending on the network, so it should take effect
+  // the moment it's ready. currentTime/paused are captured before the swap
+  // and restored once the local file's metadata has loaded, so the switch
+  // doesn't reset playback position or interrupt an in-progress play.
+  const queueStatus = useDownloadQueueStatus(itemId);
+  const wasQueuedRef = useRef(false);
+  useEffect(() => {
+    if (queueStatus === "downloading" || queueStatus === "queued") {
+      wasQueuedRef.current = true;
+      return;
+    }
+    if (!wasQueuedRef.current) return;
+    wasQueuedRef.current = false;
+    if (isOfflineSource) return;
+
+    let cancelled = false;
+    getOfflineBlob(itemId).then((blob) => {
+      if (cancelled || !blob) return;
+      const video = videoRef.current;
+      const objectUrl = URL.createObjectURL(blob);
+      const resumeAt = video?.currentTime ?? 0;
+      const wasPlaying = video ? !video.paused : false;
+
+      if (video) {
+        const onLoadedMetadata = () => {
+          video.currentTime = resumeAt;
+          if (wasPlaying) video.play().catch(() => undefined);
+          video.removeEventListener("loadedmetadata", onLoadedMetadata);
+        };
+        video.addEventListener("loadedmetadata", onLoadedMetadata);
+      }
+
+      if (offlineObjectUrlRef.current) URL.revokeObjectURL(offlineObjectUrlRef.current);
+      offlineObjectUrlRef.current = objectUrl;
+      setSrc(objectUrl);
+      setIsOfflineSource(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [queueStatus, itemId, isOfflineSource]);
 
   useEffect(() => {
     settingsRef.current = getPlayerSettings();
