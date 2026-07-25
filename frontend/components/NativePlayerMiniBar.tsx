@@ -39,7 +39,7 @@ export function NativePlayerMiniBar() {
       <button
         type="button"
         onClick={() => router.push(`/library/${meta.itemId}`)}
-        className="flex min-h-10 flex-1 items-center gap-2 text-left text-sm font-medium text-text-primary"
+        className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left text-sm font-medium text-text-primary"
       >
         <span aria-hidden="true">▶</span>
         <span className="truncate notranslate" translate="no">
@@ -49,7 +49,7 @@ export function NativePlayerMiniBar() {
       <button
         type="button"
         onClick={closeNativePlayer}
-        className="min-h-10 rounded-md border border-border px-3 text-sm font-medium text-text-secondary"
+        className="min-h-10 shrink-0 rounded-md border border-border px-3 text-sm font-medium text-text-secondary"
       >
         Schließen
       </button>
