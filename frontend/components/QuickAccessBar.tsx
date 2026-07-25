@@ -114,7 +114,6 @@ export function QuickAccessBar({ onPick }: Props) {
     <div className="mx-4 mb-3">
       {sources.length > 0 || lastLink ? (
         <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-          {restoreButton}
           {sources.map((source) => (
             <div
               key={source.id}
@@ -147,6 +146,7 @@ export function QuickAccessBar({ onPick }: Props) {
               </button>
             </div>
           ))}
+          {restoreButton}
           {addButton}
         </div>
       ) : (
