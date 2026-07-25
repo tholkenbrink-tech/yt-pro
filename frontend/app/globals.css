@@ -207,6 +207,38 @@ body {
   }
 }
 
+@keyframes sheet-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
 .sheet-enter {
-  animation: sheet-in 220ms ease-out;
+  animation: sheet-in 200ms ease-out;
+}
+
+.sheet-exit {
+  animation: sheet-out 180ms ease-in;
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.overlay-enter {
+  animation: overlay-in 200ms ease-out;
+}
+
+.overlay-exit {
+  animation: overlay-in 180ms ease-in reverse;
 }

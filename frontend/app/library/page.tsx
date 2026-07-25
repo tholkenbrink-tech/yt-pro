@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { api } from "@/lib/api";
@@ -34,9 +34,7 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: "date_asc", label: "Älteste" },
   { value: "title", label: "Titel" },
   { value: "size", label: "Größe" },
-  { value: "duration", label: "Dauer" },
   { value: "last_watched", label: "Zuletzt angesehen" },
-  { value: "published", label: "Veröffentlichung" },
 ];
 
 interface FolderGroup {
@@ -85,7 +83,7 @@ function groupItems(items: LibraryItem[]): { standalone: LibraryItem[]; groups: 
   return { standalone, groups };
 }
 
-function FolderCard({ group, onOpen }: { group: FolderGroup; onOpen: () => void }) {
+const FolderCard = memo(function FolderCard({ group, onOpen }: { group: FolderGroup; onOpen: () => void }) {
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
   return (
     <button
@@ -116,7 +114,7 @@ function FolderCard({ group, onOpen }: { group: FolderGroup; onOpen: () => void 
       </div>
     </button>
   );
-}
+});
 
 export default function LibraryPage() {
   const selfId = getCachedUserId() ?? undefined;
@@ -133,7 +131,7 @@ export default function LibraryPage() {
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [openFolder, setOpenFolder] = useState<string | null>(null);
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     setError(null);
     setOfflineOnly(false);
@@ -183,7 +181,8 @@ export default function LibraryPage() {
         }
       })
       .finally(() => setLoading(false));
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, search]);
 
   useEffect(() => {
     load();
