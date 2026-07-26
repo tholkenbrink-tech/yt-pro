@@ -12,6 +12,7 @@ import { FilterSheet } from "@/components/FilterSheet";
 import { FilterIcon } from "@/components/navIcons";
 import { listOfflineMeta } from "@/lib/offlineStore";
 import { listDownloadedToDeviceIds } from "@/lib/deviceDownloadStore";
+import { getLibrarySnapshot, saveLibrarySnapshot } from "@/lib/librarySnapshotStore";
 import { useUsers } from "@/lib/useUsers";
 import { getCachedUserId } from "@/lib/currentUser";
 
@@ -165,6 +166,10 @@ export default function LibraryPage() {
           return;
         }
         setItems(fetched);
+        // Only the plain/unfiltered listing is worth caching as "the last
+        // known Mediathek" - a narrowed search/filter result would make a
+        // poor stand-in for the whole library on a later offline load.
+        if (!isSearching && !isClientOnlyFilter) saveLibrarySnapshot(fetched);
       })
       .catch(async (err) => {
         // A real "not authenticated" response must still send the user to
@@ -173,6 +178,18 @@ export default function LibraryPage() {
         // showing whatever's stored locally instead.
         if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
           router.replace("/login");
+          return;
+        }
+        // Prefer the last known full library (every item the user has seen,
+        // downloaded or not) over the narrower IndexedDB-only list, so a
+        // non-downloaded item still shows up (correctly greyed out) instead
+        // of vanishing the moment the network is gone. Only the metadata
+        // comes from this snapshot - offline playability is still decided
+        // live, per item, from IndexedDB (see MediaCard's useIsOffline()).
+        const snapshot = getLibrarySnapshot();
+        if (snapshot && snapshot.length > 0) {
+          setOfflineOnly(true);
+          setItems(snapshot);
           return;
         }
         const offline = await listOfflineMeta();
