@@ -494,7 +494,17 @@ export function PersistentVideoPlayer() {
           top: frame.y,
           width: frame.width,
           height: frame.height,
-          zIndex: 30,
+          // Must render above whatever currently hosts its placeholder - a
+          // normal page (nav chrome is z-30, mini-bars/banners are z-40) or
+          // QuickPlayOverlay's full-screen wrapper (z-[45], see that file) -
+          // but still below toasts/dialogs (z-50) so those can still
+          // interrupt an actively playing video. Was z-30, which put it
+          // *under* QuickPlayOverlay's own opaque placeholder box: the video
+          // was genuinely playing (audio audible) but invisible behind it,
+          // and only visible in real Picture-in-Picture because PiP renders
+          // via a separate, always-on-top OS compositor layer that this
+          // page's z-index stacking has no say over at all.
+          zIndex: 48,
           opacity: 1,
           pointerEvents: "auto",
         }

@@ -11,7 +11,12 @@ export function QuickPlayOverlay() {
   if (!item) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col overflow-y-auto bg-background">
+    // z-[45]: above nav chrome/mini-bars/banners (z-30/z-40) so this genuinely
+    // covers the whole app, but below toasts/dialogs (z-50) and, critically,
+    // below PersistentVideoPlayer's own z-48 (see that file) - the actual
+    // playing <video> must render above this overlay's own placeholder box,
+    // not under it.
+    <div className="fixed inset-0 z-[45] flex flex-col overflow-y-auto bg-background">
       <div className="flex items-center justify-between gap-3 p-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
         <p className="min-w-0 flex-1 truncate text-card-title notranslate" translate="no">
           {item.title}
