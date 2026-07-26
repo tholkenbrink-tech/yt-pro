@@ -5,6 +5,7 @@ import { DesktopSidebar } from "./DesktopSidebar";
 import { MobileBottomNavigation } from "./MobileBottomNavigation";
 import { NativePlayerMiniBar } from "./NativePlayerMiniBar";
 import { PersistentVideoPlayer } from "./PersistentVideoPlayer";
+import { QuickPlayOverlay } from "./QuickPlayOverlay";
 import { WebPlayerMiniBar } from "./WebPlayerMiniBar";
 
 const NO_CHROME_PATHS = ["/login"];
@@ -32,6 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <NativePlayerMiniBar />
       <WebPlayerMiniBar />
       <MobileBottomNavigation />
+      <QuickPlayOverlay />
     </>
   );
 }

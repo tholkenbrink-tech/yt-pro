@@ -15,6 +15,10 @@ import { listDownloadedToDeviceIds } from "@/lib/deviceDownloadStore";
 import { getLibrarySnapshot, saveLibrarySnapshot } from "@/lib/librarySnapshotStore";
 import { useUsers } from "@/lib/useUsers";
 import { getCachedUserId } from "@/lib/currentUser";
+import { useIsOffline } from "@/lib/offlineStatusStore";
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
+import { openQuickPlay } from "@/lib/quickPlayStore";
+import { useToast } from "@/components/ToastProvider";
 
 function displayName(name: string) {
   return name.charAt(0).toUpperCase() + name.slice(1);
@@ -74,6 +78,60 @@ function groupItems(items: LibraryItem[]): { standalone: LibraryItem[]; groups: 
   const standalone = items.filter((i) => !groupedIds.has(i.id));
   return { standalone, groups };
 }
+
+const ContinueWatchingCard = memo(function ContinueWatchingCard({ item }: { item: LibraryItem }) {
+  const offline = useIsOffline(item.id);
+  const online = useOnlineStatus();
+  const { showToast } = useToast();
+
+  // Same reasoning as MediaCard's handleOpenClick: bypass the route change
+  // entirely when offline (even for a downloaded item) so a not-yet-cached
+  // route's failed data fetch can never fall back to a full navigation and
+  // hit the native shell's origin-isolated offline-fallback.html dead end.
+  const handleClick = (e: React.MouseEvent) => {
+    if (online) return;
+    e.preventDefault();
+    if (offline) {
+      openQuickPlay({ itemId: item.id, title: item.title, channelName: item.channelName, thumbnailPath: item.thumbnailPath });
+    } else {
+      showToast("Dieses Video ist offline nicht verfügbar. Verbinde dich mit dem Internet, um es zu öffnen.");
+    }
+  };
+
+  return (
+    <Link
+      href={`/library/${item.id}`}
+      onClick={handleClick}
+      aria-disabled={!online && !offline}
+      className={`w-[150px] shrink-0 ${!online && !offline ? "opacity-50" : ""}`}
+    >
+      <div className="relative h-[84px] w-[150px] overflow-hidden rounded-xl bg-surface-elevated">
+        {item.thumbnailPath ? (
+          <Image
+            src={item.thumbnailPath}
+            alt=""
+            width={150}
+            height={84}
+            unoptimized
+            className="h-[84px] w-[150px] object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-lg text-text-muted">🎬</div>
+        )}
+        <div className="absolute inset-x-0 bottom-0 h-1 bg-black/40">
+          <div
+            className="h-full bg-accent"
+            style={{ width: `${Math.min(100, Math.max(0, item.progress?.percentage ?? 0))}%` }}
+          />
+        </div>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/15 text-lg text-white">▶</div>
+      </div>
+      <p className="mt-1.5 w-[150px] truncate text-[12.5px] text-text-primary notranslate" translate="no">
+        {item.title}
+      </p>
+    </Link>
+  );
+});
 
 const FolderCard = memo(function FolderCard({ group, onOpen }: { group: FolderGroup; onOpen: () => void }) {
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
@@ -382,34 +440,7 @@ export default function LibraryPage() {
               </p>
               <div className="flex gap-2.5 overflow-x-auto pb-1">
                 {continueWatching.map((item) => (
-                  <Link key={item.id} href={`/library/${item.id}`} className="w-[150px] shrink-0">
-                    <div className="relative h-[84px] w-[150px] overflow-hidden rounded-xl bg-surface-elevated">
-                      {item.thumbnailPath ? (
-                        <Image
-                          src={item.thumbnailPath}
-                          alt=""
-                          width={150}
-                          height={84}
-                          unoptimized
-                          className="h-[84px] w-[150px] object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-lg text-text-muted">🎬</div>
-                      )}
-                      <div className="absolute inset-x-0 bottom-0 h-1 bg-black/40">
-                        <div
-                          className="h-full bg-accent"
-                          style={{ width: `${Math.min(100, Math.max(0, item.progress?.percentage ?? 0))}%` }}
-                        />
-                      </div>
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/15 text-lg text-white">
-                        ▶
-                      </div>
-                    </div>
-                    <p className="mt-1.5 w-[150px] truncate text-[12.5px] text-text-primary notranslate" translate="no">
-                      {item.title}
-                    </p>
-                  </Link>
+                  <ContinueWatchingCard key={item.id} item={item} />
                 ))}
               </div>
             </div>

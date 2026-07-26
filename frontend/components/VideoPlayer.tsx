@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { formatDuration } from "@/lib/format";
 import { isNativeIOS } from "@/lib/nativePlayer";
 import { getPlayerSettings } from "@/lib/playerSettings";
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import {
   loadWebPlayerItem,
   releaseWebPlayerPage,
@@ -43,8 +44,35 @@ export function VideoPlayer(props: Props) {
   useEffect(() => {
     setIsNative(isNativeIOS());
   }, []);
+  const online = useOnlineStatus();
 
-  if (isNative) {
+  // The native AVPlayerViewController always streams from api.streamUrl()
+  // (see nativePlayerStore.ts's openNativePlayer) - it has no way to play a
+  // local IndexedDB blob, since that's JS-side WKWebView storage a native
+  // Swift player can't read directly. So offline, it can only ever fail;
+  // falling back to the web <video> element instead - which does check the
+  // offline blob first (see WebVideoPlayer below) - is what actually makes a
+  // downloaded video playable offline inside the native shell at all. Losing
+  // real PiP/background-audio for that one case is the right trade-off
+  // against it simply never playing.
+  //
+  // Decided once per itemId and re-decided the moment `isNative` itself
+  // becomes known post-mount (it starts false to avoid a hydration
+  // mismatch, then flips at most once) - but never re-decided again just
+  // because `online` later changes. A reconnect/disconnect while a video is
+  // already open must not suddenly tear down and replace whichever player
+  // is actively presenting; each player already reacts to connectivity
+  // changes on its own terms instead (WebVideoPlayer re-checks the offline
+  // blob when `online` changes).
+  const decisionKeyRef = useRef<string | null>(null);
+  const useNativeRef = useRef(false);
+  const decisionKey = `${props.itemId}:${isNative}`;
+  if (decisionKeyRef.current !== decisionKey) {
+    decisionKeyRef.current = decisionKey;
+    useNativeRef.current = isNative && online;
+  }
+
+  if (useNativeRef.current) {
     return <NativeVideoPlayer {...props} />;
   }
   return <WebVideoPlayer {...props} />;

@@ -24,6 +24,7 @@ import {
   useDownloadFailureMessage,
 } from "@/lib/downloadFailureStore";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
+import { openQuickPlay } from "@/lib/quickPlayStore";
 import {
   forgetDownloadedToDevice,
   isDownloadedToDevice,
@@ -82,10 +83,25 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
   // stays interactive.
   const unavailableOffline = !online && !offline;
 
-  const blockIfUnavailable = (e: React.MouseEvent) => {
-    if (!unavailableOffline) return;
-    e.preventDefault();
-    showToast("Dieses Video ist offline nicht verfügbar. Verbinde dich mit dem Internet, um es zu öffnen.");
+  // Opening a video is normally a Next.js route change (Link to
+  // /library/[id]) - fine while online, but offline it risks Next.js
+  // falling back to a full page navigation when it can't fetch a not-yet-
+  // visited route's data, which inside the native iOS shell can trigger
+  // Capacitor's bundled (origin-isolated, IndexedDB-less) offline-
+  // fallback.html and strand the user - even for a video that's fully
+  // downloaded. Bypassing routing entirely via quickPlayStore's overlay
+  // when offline sidesteps that failure mode altogether; online, normal
+  // navigation is left untouched since it already works correctly.
+  const handleOpenClick = (e: React.MouseEvent) => {
+    if (unavailableOffline) {
+      e.preventDefault();
+      showToast("Dieses Video ist offline nicht verfügbar. Verbinde dich mit dem Internet, um es zu öffnen.");
+      return;
+    }
+    if (!online && offline) {
+      e.preventDefault();
+      openQuickPlay({ itemId: item.id, title: item.title, channelName: item.channelName, thumbnailPath: item.thumbnailPath });
+    }
   };
 
   useEffect(() => {
@@ -251,7 +267,7 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
     >
       <Link
         href={`/library/${item.id}`}
-        onClick={blockIfUnavailable}
+        onClick={handleOpenClick}
         aria-disabled={unavailableOffline}
         className="relative shrink-0"
       >
@@ -278,7 +294,7 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
       </Link>
 
       <div className="min-w-0 flex-1">
-        <Link href={`/library/${item.id}`} onClick={blockIfUnavailable} aria-disabled={unavailableOffline} className="block">
+        <Link href={`/library/${item.id}`} onClick={handleOpenClick} aria-disabled={unavailableOffline} className="block">
           <p className="truncate text-card-title notranslate" translate="no">
             {item.title}
           </p>
@@ -330,7 +346,7 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
       <div className="flex shrink-0 flex-col items-center gap-2">
         <Link
           href={`/library/${item.id}?autoplay=1`}
-          onClick={blockIfUnavailable}
+          onClick={handleOpenClick}
           aria-disabled={unavailableOffline}
           aria-label={hasProgress ? "Fortsetzen" : "Abspielen"}
           className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-sm text-white"
