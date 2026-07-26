@@ -24,7 +24,7 @@ const ARIA_LABELS: Record<DownloadButtonState, string> = {
 
 const TEXT_LABELS: Record<DownloadButtonState, string> = {
   idle: "⬇ In App speichern",
-  queued: "⏳ In Warteschlange",
+  queued: "○ In Warteschlange",
   downloading: "⬇ Wird geladen…",
   downloaded: "✓ In der App",
   failed: "⚠ Fehlgeschlagen - erneut versuchen",

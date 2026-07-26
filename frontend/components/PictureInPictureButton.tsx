@@ -10,7 +10,7 @@ interface LegacyPresentationVideo extends HTMLVideoElement {
 }
 
 interface Props {
-  videoRef: React.RefObject<HTMLVideoElement | null>;
+  video: HTMLVideoElement | null;
   /** Whether "pip" is the current leave-the-app preference - drives the
    * highlighted/active look. Mutually exclusive with the audio button. */
   active: boolean;
@@ -44,13 +44,13 @@ const WEBKIT_CONFIRM_TIMEOUT_MS = 600;
  * for the browser's own `webkitpresentationmodechanged` confirmation and
  * time out if it never arrives.
  */
-export function PictureInPictureButton({ videoRef, active, onActivate, onDeactivate }: Props) {
+export function PictureInPictureButton({ video: videoProp, active, onActivate, onDeactivate }: Props) {
   const [mode, setMode] = useState<"standard" | "webkit" | null>(null);
   const { showToast } = useToast();
   const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const video = videoRef.current as LegacyPresentationVideo | null;
+    const video = videoProp as LegacyPresentationVideo | null;
     if (!video) return;
 
     const detect = () => {
@@ -67,10 +67,10 @@ export function PictureInPictureButton({ videoRef, active, onActivate, onDeactiv
     // capability hooks once the video element actually has a source.
     video.addEventListener("loadedmetadata", detect);
     return () => video.removeEventListener("loadedmetadata", detect);
-  }, [videoRef]);
+  }, [videoProp]);
 
   useEffect(() => {
-    const video = videoRef.current as LegacyPresentationVideo | null;
+    const video = videoProp as LegacyPresentationVideo | null;
     if (!video) return;
 
     const onLeaveStandard = () => onDeactivate();
@@ -94,12 +94,12 @@ export function PictureInPictureButton({ videoRef, active, onActivate, onDeactiv
       if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoRef]);
+  }, [videoProp]);
 
   if (!mode) return null;
 
   const toggle = async () => {
-    const video = videoRef.current as LegacyPresentationVideo | null;
+    const video = videoProp as LegacyPresentationVideo | null;
     if (!video) return;
 
     if (mode === "webkit") {
