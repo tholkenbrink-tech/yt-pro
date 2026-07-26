@@ -109,19 +109,26 @@ export function PersistentVideoPlayer() {
 
     getOfflineBlob(itemId)
       .then((blob) => {
-        if (cancelled) return null;
+        if (cancelled) return true;
         if (blob) {
           const objectUrl = URL.createObjectURL(blob);
           offlineObjectUrlRef.current = objectUrl;
           setSrc(objectUrl);
           setWebPlayerState({ isOfflineSource: true, error: null });
-          return null;
+          return true;
         }
-        return blob;
+        return false;
       })
-      .catch(() => null)
-      .then((blob) => {
-        if (cancelled || blob) return;
+      .catch(() => false)
+      // `handled` (not the blob itself, which was a footgun: `null` was
+      // returned both for "cancelled/found" and for "not found", making the
+      // two indistinguishable here) - a found-and-set offline source must
+      // short-circuit before the network/offline-error branch below ever
+      // runs, or it immediately overwrites the just-set isOfflineSource/
+      // error state with a stale "offline nicht verfügbar" error even
+      // though the local file was found and is already playing.
+      .then((handled) => {
+        if (cancelled || handled) return;
 
         if (!online) {
           setSrc("");

@@ -29,6 +29,13 @@ export interface DownloadSettings {
   /** Gates starting network playback in the player - never blocks playing an
    * already-downloaded offline copy. See lib/wifiGate.ts. */
   wifiOnlyStreaming: boolean;
+  /** User-configured cap (bytes) on total in-app offline storage - `null`
+   * means no app-level cap. Independent of and in addition to the device's
+   * own IndexedDB storage quota (see checkStorageQuota in offlineStore.ts):
+   * that one reflects what the device will actually allow; this one lets a
+   * user deliberately keep in-app downloads well below that, e.g. to leave
+   * room for photos/other apps. */
+  maxOfflineStorageBytes: number | null;
 }
 
 export const DEFAULT_DOWNLOAD_SETTINGS: DownloadSettings = {
@@ -39,6 +46,7 @@ export const DEFAULT_DOWNLOAD_SETTINGS: DownloadSettings = {
   wifiOnlyDeviceDownload: false,
   wifiOnlyDownload: false,
   wifiOnlyStreaming: false,
+  maxOfflineStorageBytes: null,
 };
 
 export interface SourceDefaults {

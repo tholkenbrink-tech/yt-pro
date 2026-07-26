@@ -11,7 +11,15 @@ import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { Skeleton } from "@/components/Skeleton";
 import { IOSSaveInstructions, SEEN_INSTRUCTIONS_KEY } from "@/components/IOSSaveInstructions";
 import { DeviceFileInstructions } from "@/components/DeviceFileInstructions";
-import { getOfflineMeta, isOffline, removeOffline, saveOfflineInApp, triggerDeviceDownload } from "@/lib/offlineStore";
+import {
+  getOfflineMeta,
+  isOffline,
+  OfflineStorageLimitError,
+  removeOffline,
+  saveOfflineInApp,
+  StorageQuotaError,
+  triggerDeviceDownload,
+} from "@/lib/offlineStore";
 import {
   forgetDownloadedToDevice,
   isDownloadedToDevice,
@@ -195,6 +203,14 @@ export default function VideoPlayerPage() {
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         showToast("Download abgebrochen");
+      } else if (err instanceof StorageQuotaError) {
+        showToast(
+          `Nicht genug Speicherplatz. Benötigt: ~${formatBytes(err.requiredBytes)}, verfügbar: ~${formatBytes(err.availableBytes)}.`
+        );
+      } else if (err instanceof OfflineStorageLimitError) {
+        showToast(
+          `Speicherlimit erreicht (${formatBytes(err.usedBytes)} von ${formatBytes(err.limitBytes)}). Erhöhe das Limit unter Einstellungen -> Speicher oder lösche andere Downloads.`
+        );
       } else {
         showToast("Offline-Speicherung fehlgeschlagen - evtl. zu wenig Speicherplatz");
       }

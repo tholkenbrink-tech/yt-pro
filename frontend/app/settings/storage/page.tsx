@@ -15,6 +15,7 @@ import {
   type OfflineMeta,
   type SaveProgressRecord,
 } from "@/lib/offlineStore";
+import { getDownloadSettings, setDownloadSettings } from "@/lib/localSettings";
 import { useToast } from "@/components/ToastProvider";
 
 const RETENTION_OPTIONS: { value: number | null; label: string }[] = [
@@ -22,6 +23,17 @@ const RETENTION_OPTIONS: { value: number | null; label: string }[] = [
   { value: 72, label: "3 Tage" },
   { value: 168, label: "7 Tage" },
   { value: null, label: "Manuell löschen" },
+];
+
+const GB = 1024 * 1024 * 1024;
+const OFFLINE_LIMIT_OPTIONS: { value: number | null; label: string }[] = [
+  { value: null, label: "Unbegrenzt" },
+  { value: 1 * GB, label: "1 GB" },
+  { value: 2 * GB, label: "2 GB" },
+  { value: 5 * GB, label: "5 GB" },
+  { value: 10 * GB, label: "10 GB" },
+  { value: 20 * GB, label: "20 GB" },
+  { value: 50 * GB, label: "50 GB" },
 ];
 
 export default function StorageSettingsPage() {
@@ -37,7 +49,14 @@ export default function StorageSettingsPage() {
   const [partialBytes, setPartialBytes] = useState(0);
   const [partialItems, setPartialItems] = useState<SaveProgressRecord[]>([]);
   const [clearingPartial, setClearingPartial] = useState(false);
+  const [offlineLimitBytes, setOfflineLimitBytes] = useState<number | null>(null);
   const { showToast } = useToast();
+
+  const changeOfflineLimit = (value: number | null) => {
+    setOfflineLimitBytes(value);
+    setDownloadSettings({ maxOfflineStorageBytes: value });
+    showToast("Einstellung gespeichert");
+  };
 
   const load = () => {
     api
@@ -69,6 +88,7 @@ export default function StorageSettingsPage() {
   useEffect(() => {
     load();
     loadOfflineUsage();
+    setOfflineLimitBytes(getDownloadSettings().maxOfflineStorageBytes);
   }, []);
 
   const clearOffline = async () => {
@@ -195,6 +215,47 @@ export default function StorageSettingsPage() {
             )}
           </>
         )}
+      </div>
+
+      <p className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-wide text-text-muted">
+        Speicherlimit für In-App-Downloads
+      </p>
+      <div className="mb-6 rounded-2xl border border-border bg-surface p-3.5">
+        <p className="mb-3 text-meta text-text-muted">
+          Begrenzt, wie viel Speicherplatz Videos, die &quot;In der App&quot; gespeichert
+          werden, insgesamt belegen dürfen - unabhängig davon, wie viel
+          Speicherplatz das Gerät selbst noch hätte.
+        </p>
+        {offlineLimitBytes !== null && (
+          <div className="mb-3">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-progress-track">
+              <div
+                className={`h-full rounded-full ${offlineBytes >= offlineLimitBytes ? "bg-error" : "bg-accent"}`}
+                style={{ width: `${Math.min(100, Math.round((offlineBytes / offlineLimitBytes) * 100))}%` }}
+              />
+            </div>
+            <p className="mt-1.5 text-meta text-text-muted">
+              {formatBytes(offlineBytes)} von {formatBytes(offlineLimitBytes)} belegt
+            </p>
+          </div>
+        )}
+        <div className="flex flex-wrap gap-1.5">
+          {OFFLINE_LIMIT_OPTIONS.map((opt) => {
+            const active = offlineLimitBytes === opt.value;
+            return (
+              <button
+                key={String(opt.value)}
+                type="button"
+                onClick={() => changeOfflineLimit(opt.value)}
+                className={`rounded-xl px-3 py-1.5 text-[12.5px] font-medium ${
+                  active ? "bg-accent text-white" : "border border-border text-text-secondary"
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <p className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-wide text-text-muted">

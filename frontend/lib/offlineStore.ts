@@ -1,4 +1,5 @@
 import { api } from "./api";
+import { getDownloadSettings } from "./localSettings";
 
 /** Minimal shape saveOffline() actually needs - LibraryItem satisfies this
  * structurally, but JobItem (Aktivität's freshly-finished download cards)
@@ -150,6 +151,32 @@ export async function checkStorageQuota(
   }
 }
 
+/** Thrown by saveOfflineInApp() when starting a save would exceed the
+ * user's own configured cap on total in-app offline storage (Settings ->
+ * Speicher) - distinct from StorageQuotaError, which is about what the
+ * device itself will allow. This one is purely a self-imposed limit, so the
+ * message is phrased accordingly ("you set a limit"), not "not enough
+ * space". */
+export class OfflineStorageLimitError extends Error {
+  constructor(public limitBytes: number, public usedBytes: number) {
+    super(`Offline storage limit reached: limit ${limitBytes}, used ${usedBytes}`);
+    this.name = "OfflineStorageLimitError";
+  }
+}
+
+/** Preflight check against the user's own configured limit (if any) -
+ * completely independent of checkStorageQuota()'s device-level check above,
+ * and checked separately in saveOfflineInApp() so each can produce its own
+ * specific, actionable error message. */
+async function checkOfflineStorageLimit(expectedBytes: number): Promise<void> {
+  const limitBytes = getDownloadSettings().maxOfflineStorageBytes;
+  if (!limitBytes) return;
+  const usedBytes = await getOfflineUsageBytes();
+  if (usedBytes + expectedBytes > limitBytes) {
+    throw new OfflineStorageLimitError(limitBytes, usedBytes);
+  }
+}
+
 /** Best-effort request that the browser not silently evict this origin's
  * IndexedDB data under storage pressure. iOS Safari often ignores/no-ops
  * this, but it costs nothing to ask and helps on browsers that honor it. */
@@ -274,6 +301,7 @@ export async function saveOfflineInApp(
   signal?: AbortSignal
 ): Promise<void> {
   const expectedBytes = item.fileSize ?? 0;
+  await checkOfflineStorageLimit(expectedBytes);
   const quota = await checkStorageQuota(expectedBytes);
   if (!quota.ok) throw new StorageQuotaError(quota.requiredBytes, quota.availableBytes);
 

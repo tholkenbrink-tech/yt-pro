@@ -14,7 +14,13 @@ import { DeviceFileInstructions } from "./DeviceFileInstructions";
 import { MediaDownloadStatusButton, type DownloadButtonState } from "./MediaDownloadStatusButton";
 import { useToast } from "./ToastProvider";
 import { formatBytes, formatDate, formatDuration } from "@/lib/format";
-import { removeOffline, saveOfflineInApp, StorageQuotaError, triggerDeviceDownload } from "@/lib/offlineStore";
+import {
+  OfflineStorageLimitError,
+  removeOffline,
+  saveOfflineInApp,
+  StorageQuotaError,
+  triggerDeviceDownload,
+} from "@/lib/offlineStore";
 import { setOfflineStatus, useIsOffline } from "@/lib/offlineStatusStore";
 import {
   clearFailed,
@@ -120,6 +126,10 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
         showToast("Download abgebrochen");
       } else if (err instanceof StorageQuotaError) {
         const message = `Nicht genug Speicherplatz. Benötigt: ~${formatBytes(err.requiredBytes)}, verfügbar: ~${formatBytes(err.availableBytes)}.`;
+        markFailed(item.id, message);
+        showToast(message);
+      } else if (err instanceof OfflineStorageLimitError) {
+        const message = `Speicherlimit erreicht (${formatBytes(err.usedBytes)} von ${formatBytes(err.limitBytes)}). Erhöhe das Limit unter Einstellungen -> Speicher oder lösche andere Downloads.`;
         markFailed(item.id, message);
         showToast(message);
       } else {
