@@ -7,7 +7,6 @@ import { api } from "@/lib/api";
 import type { LibraryFolder, LibraryItem } from "@/lib/types";
 import { deriveMediaState } from "@/lib/mediaStateConfig";
 import { MediaStatusBadge } from "./MediaStatusBadge";
-import { SourceBadge } from "./SourceBadge";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { BottomSheet } from "./BottomSheet";
 import { IOSSaveInstructions, SEEN_INSTRUCTIONS_KEY } from "./IOSSaveInstructions";
@@ -291,10 +290,6 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
           </p>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {state !== "started" && <MediaStatusBadge state={state} />}
-            {item.isAutomaticallyPrepared && <SourceBadge isAutomatic sourceName={item.sourceName} />}
-            {offline && (
-              <span className="rounded-pill bg-success/15 px-2 py-0.5 text-meta text-success">✓ In der App</span>
-            )}
             {deviceDownloaded && (
               <span className="rounded-pill bg-success/15 px-2 py-0.5 text-meta text-success">✓ Auf Gerät</span>
             )}
@@ -318,7 +313,7 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
             </div>
           )}
         </Link>
-        <div className="mt-1.5 flex justify-end">
+        <div className="mt-1.5">
           <MediaDownloadStatusButton
             state={downloadButtonState}
             progressPct={saveProgressPct}
