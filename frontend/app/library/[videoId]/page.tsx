@@ -130,6 +130,18 @@ export default function VideoPlayerPage() {
     };
   }, [videoId]);
 
+  // A video that isn't saved offline and couldn't be reached over the
+  // network has nothing to show here - rather than stranding the user on a
+  // dedicated "no connection" page, bounce back to the Mediathek with a
+  // small dismissible message instead. "not_found" (genuinely deleted from
+  // the NAS) is left as its own inline page - that's real information worth
+  // seeing, not a connectivity dead end.
+  useEffect(() => {
+    if (error !== "offline") return;
+    showToast("Dieses Video ist offline nicht verfügbar. Verbinde dich mit dem Internet, um es zu öffnen.");
+    router.replace("/library");
+  }, [error, router, showToast]);
+
   if (item === undefined) {
     return (
       <main className="mx-auto max-w-2xl pl-[calc(1rem+env(safe-area-inset-left))] pr-[calc(1rem+env(safe-area-inset-right))] pb-4 pt-6 md:max-w-4xl">
@@ -151,16 +163,13 @@ export default function VideoPlayerPage() {
   }
 
   if (!item) {
+    // "offline" redirects away via the effect above before ever rendering
+    // here - this now only covers "not_found" (deleted from the NAS), which
+    // is real information worth a dedicated page, not a connectivity issue.
     return (
       <main className="mx-auto max-w-2xl px-4 pb-4 pt-6">
-        <h1 className="mb-2 text-section-title">
-          {error === "offline" ? "Keine Verbindung" : "Datei nicht mehr verfügbar"}
-        </h1>
-        <p className="text-sm text-text-secondary">
-          {error === "offline"
-            ? "Dieses Video wurde nicht für die Offline-Wiedergabe gespeichert. Verbinde dich mit dem Internet, um es anzusehen."
-            : "Das Video wurde von der NAS gelöscht oder ist abgelaufen."}
-        </p>
+        <h1 className="mb-2 text-section-title">Datei nicht mehr verfügbar</h1>
+        <p className="text-sm text-text-secondary">Das Video wurde von der NAS gelöscht oder ist abgelaufen.</p>
       </main>
     );
   }

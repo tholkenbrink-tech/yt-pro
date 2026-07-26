@@ -32,8 +32,13 @@ function runtimeCacheName() {
 // playback - both independently derive the same name from /BUILD_ID.
 
 // Only the app shell / static assets are precached - never anything video-
-// or API-related.
+// or API-related. "/" and "/library" are precached explicitly (not just
+// relied on being warmed by a prior visit) so the app can always open
+// straight to the Mediathek on a cold, fully offline launch - a hard
+// navigation failure must never be the very first thing a user sees.
 const SHELL_ASSETS = [
+  "/",
+  "/library",
   "/offline",
   "/manifest.json",
   "/icons/icon-192.png",
@@ -93,7 +98,12 @@ self.addEventListener("fetch", (event) => {
     // Network-first so users always see fresh content when online, but
     // every successful visit is cached (into the current build's runtime
     // cache) so the same page can be reopened from a cold, fully offline
-    // launch later. Only then does it fall back to the generic /offline page.
+    // launch later. Falls back to the exact page if it was cached, then to
+    // /library (never a dead end - the Mediathek itself already knows how to
+    // show downloaded/local content gracefully when offline) rather than a
+    // dedicated "no connection" page. /offline is kept only as a very last
+    // resort in case /library was somehow never cached either (e.g. it was
+    // just evicted right as this fired).
     event.respondWith(
       fetch(request)
         .then((response) => {
@@ -107,6 +117,7 @@ self.addEventListener("fetch", (event) => {
         .catch(() =>
           caches
             .match(request)
+            .then((cached) => cached || caches.match("/library"))
             .then((cached) => cached || caches.match("/offline"))
             .then((r) => r || Response.error())
         )

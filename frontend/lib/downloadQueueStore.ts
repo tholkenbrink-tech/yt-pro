@@ -92,7 +92,13 @@ export function subscribe(listener: () => void): () => void {
 }
 
 export function useDownloadQueueStatus(itemId: string): "idle" | "queued" | "downloading" {
-  return useSyncExternalStore(subscribe, () => getStatus(itemId));
+  // Explicit getServerSnapshot (same fn - queue/runningId are always empty
+  // on the server, so there's nothing to diverge) - without it, React
+  // throws "Missing getServerSnapshot" for any component using this that's
+  // part of a statically-prerendered page, which PersistentVideoPlayer now
+  // is (mounted globally in AppShell instead of only on the video's own,
+  // dynamically-rendered page).
+  return useSyncExternalStore(subscribe, () => getStatus(itemId), () => getStatus(itemId));
 }
 
 /** Snapshot of the running download and everything waiting behind it, for
