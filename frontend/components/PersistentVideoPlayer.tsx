@@ -57,6 +57,18 @@ export function PersistentVideoPlayer() {
   const online = useOnlineStatus();
   const itemId = meta?.itemId ?? null;
 
+  // Setting the `src` attribute via a React prop update (below) changes the
+  // DOM attribute, but WebKit doesn't reliably start loading the new
+  // resource from that alone once the element has already had a previous
+  // source (network URL or blob: URL) - an explicit `.load()` call is the
+  // standard fix, and is what was silently missing here: offline playback
+  // could assign a perfectly valid blob: URL and still sit in "waiting"
+  // forever because the element never actually began loading it.
+  useEffect(() => {
+    if (!src) return;
+    videoRef.current?.load();
+  }, [src]);
+
   useEffect(() => {
     backgroundPlaybackModeRef.current = backgroundPlaybackMode;
   }, [backgroundPlaybackMode]);
