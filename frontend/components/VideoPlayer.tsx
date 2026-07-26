@@ -7,6 +7,7 @@ import { type BackgroundPlaybackMode, getPlayerSettings, setPlayerSettings } fro
 import { getOfflineBlob } from "@/lib/offlineStore";
 import { useDownloadQueueStatus } from "@/lib/downloadQueueStore";
 import { shouldStream } from "@/lib/wifiGate";
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { isNativeIOS } from "@/lib/nativePlayer";
 import { BackgroundAudioButton } from "./BackgroundAudioButton";
 import { NativeVideoPlayer } from "./NativeVideoPlayer";
@@ -73,6 +74,7 @@ function WebVideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }: Pro
   useEffect(() => {
     backgroundPlaybackModeRef.current = backgroundPlaybackMode;
   }, [backgroundPlaybackMode]);
+  const online = useOnlineStatus();
 
   const selectBackgroundPlaybackMode = (mode: BackgroundPlaybackMode) => {
     setBackgroundPlaybackMode(mode);
@@ -111,12 +113,6 @@ function WebVideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }: Pro
 
   useEffect(() => {
     let cancelled = false;
-    // Optimistically start the network stream right away unless "Nur im
-    // WLAN streamen" is on and blocks it - the WLAN check and the
-    // offline-copy check below both run async in parallel (the former reads
-    // the native network status, the latter is IndexedDB), and an offline
-    // copy always wins once found either way, so there's no point waiting
-    // for either before starting the other.
     setIsOfflineSource(false);
     setIsBuffering(true);
     if (offlineObjectUrlRef.current) {
@@ -124,24 +120,40 @@ function WebVideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }: Pro
       offlineObjectUrlRef.current = null;
     }
 
-    shouldStream().then((streamingAllowed) => {
-      if (cancelled) return;
-      setSrc(streamingAllowed ? api.streamUrl(itemId) : "");
-      setError(streamingAllowed ? null : "wifi-required");
-    });
-
+    // Offline copy always wins when one exists, so check for it first and
+    // deterministically - only fall through to a network streaming attempt
+    // once we know for certain there isn't one. Racing both checks in
+    // parallel (as this used to) let whichever promise happened to resolve
+    // last silently overwrite the other's result, which could pick the
+    // network stream even when a local copy was available.
     getOfflineBlob(itemId)
       .then((blob) => {
-        if (cancelled || !blob) return;
-        const objectUrl = URL.createObjectURL(blob);
-        offlineObjectUrlRef.current = objectUrl;
-        setSrc(objectUrl);
-        setIsOfflineSource(true);
-        setError(null);
+        if (cancelled) return null;
+        if (blob) {
+          const objectUrl = URL.createObjectURL(blob);
+          offlineObjectUrlRef.current = objectUrl;
+          setSrc(objectUrl);
+          setIsOfflineSource(true);
+          setError(null);
+          return null;
+        }
+        return blob;
       })
-      .catch(() => {
-        /* no offline copy - keep streaming from the network (or stay
-           blocked above if WLAN-only streaming vetoed it) */
+      .catch(() => null)
+      .then((blob) => {
+        if (cancelled || blob) return;
+
+        if (!online) {
+          setSrc("");
+          setError("offline");
+          return;
+        }
+
+        shouldStream().then((streamingAllowed) => {
+          if (cancelled) return;
+          setSrc(streamingAllowed ? api.streamUrl(itemId) : "");
+          setError(streamingAllowed ? null : "wifi-required");
+        });
       });
 
     return () => {
@@ -151,7 +163,10 @@ function WebVideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }: Pro
         offlineObjectUrlRef.current = null;
       }
     };
-  }, [itemId]);
+    // Re-runs when connectivity is restored, so a video that was blocked
+    // offline (with no local copy) starts streaming automatically instead
+    // of requiring the page to be reopened.
+  }, [itemId, online]);
 
   // If an in-app download for this video finishes while it's already
   // streaming, switch playback over to the local copy right away instead of
@@ -528,14 +543,18 @@ function WebVideoPlayer({ itemId, title, channelName, thumbnail, autoPlay }: Pro
           <p className="font-medium">
             {error === "wifi-required"
               ? "Streaming nur im WLAN erlaubt"
-              : "Video kann nicht abgespielt werden"}
+              : error === "offline"
+                ? "Dieses Video ist offline nicht verfügbar"
+                : "Video kann nicht abgespielt werden"}
           </p>
           <p>
             {error === "wifi-required"
               ? 'In den Einstellungen ist "Nur im WLAN streamen" aktiviert. Verbinde dich mit dem WLAN oder speichere das Video vorher offline in der App.'
-              : isOfflineSource
-                ? "Die offline gespeicherte Datei konnte nicht gelesen werden."
-                : "Prüfe deine Verbindung oder bereite das Video erneut vor."}
+              : error === "offline"
+                ? "Verbinde dich mit dem Internet, um es anzusehen, oder speichere es vorher offline in der App."
+                : isOfflineSource
+                  ? "Die offline gespeicherte Datei konnte nicht gelesen werden."
+                  : "Prüfe deine Verbindung oder bereite das Video erneut vor."}
           </p>
         </div>
       )}

@@ -2,10 +2,20 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { listOfflineMeta, type OfflineMeta } from "@/lib/offlineStore";
 import { formatDuration } from "@/lib/format";
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
 
+// Reached only as the service worker's last-resort fallback for a hard
+// navigation that failed entirely with nothing cached to serve instead (see
+// public/sw.js) - not something the app's own client-side routing ever
+// pushes the user to. Deliberately not a dead end: AppShell keeps its normal
+// nav chrome on this route, and connectivity returning navigates away from
+// it automatically without the user needing to do anything.
 export default function OfflinePage() {
+  const router = useRouter();
+  const online = useOnlineStatus();
   const [videos, setVideos] = useState<OfflineMeta[] | null>(null);
 
   useEffect(() => {
@@ -14,13 +24,23 @@ export default function OfflinePage() {
       .catch(() => setVideos([]));
   }, []);
 
+  useEffect(() => {
+    if (online) router.replace("/library");
+  }, [online, router]);
+
   return (
     <main className="mx-auto max-w-lg px-6 pb-4 pt-10">
       <h1 className="text-center text-page-title">Keine Verbindung</h1>
       <p className="mt-2 text-center text-sm text-text-muted">
-        yt-pro benötigt eine Internetverbindung, um Videos zu analysieren und
-        herunterzuladen.
+        Diese Seite braucht eine Internetverbindung. Deine heruntergeladenen
+        Videos sind trotzdem verfügbar - über den unteren Tab.
       </p>
+      <Link
+        href="/library"
+        className="mt-4 block min-h-11 rounded-xl border border-border px-4 py-3 text-center text-sm font-medium text-text-primary"
+      >
+        Zur Mediathek
+      </Link>
 
       {videos && videos.length > 0 && (
         <>

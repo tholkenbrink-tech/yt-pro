@@ -5,11 +5,20 @@ import Image from "next/image";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { useToast } from "./ToastProvider";
 import { formatBytes, formatDate } from "@/lib/format";
-import { type OfflineMeta, listOfflineMeta, removeOffline } from "@/lib/offlineStore";
-import { useInAppDownloadProgress } from "@/lib/activeDownloadsStore";
+import {
+  type OfflineMeta,
+  type SaveProgressRecord,
+  listFailedOrInterrupted,
+  listOfflineMeta,
+  removeOffline,
+  saveOfflineInApp,
+} from "@/lib/offlineStore";
+import { removeFailedEntry } from "@/lib/downloadFailureStore";
+import { setDownloadProgress, startTracking, stopTracking, useInAppDownloadProgress } from "@/lib/activeDownloadsStore";
 import {
   cancelQueuedDownload,
   cancelRunningDownload,
+  enqueueDownload,
   getRunningDownload,
   listQueuedDownloads,
   useQueueVersion,
@@ -67,6 +76,48 @@ function QueuedRow({ itemId, title, thumbnail, onCancel }: { itemId: string; tit
   );
 }
 
+function FailedRow({
+  record,
+  onRetry,
+  onRemove,
+}: {
+  record: SaveProgressRecord;
+  onRetry: () => void;
+  onRemove: () => void;
+}) {
+  const title = record.sourceItem?.title ?? record.id;
+  const statusLabel = record.status === "interrupted" ? "Unterbrochen" : "Fehlgeschlagen";
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-error/30 bg-error/5 p-3">
+      <Thumb src={record.sourceItem?.thumbnailPath} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-text-primary">{title}</p>
+        <p className="mt-0.5 truncate text-meta text-error">
+          {statusLabel}
+          {record.bytes > 0 ? ` · ${formatBytes(record.bytes)} gespeichert` : ""}
+          {record.errorMessage ? ` · ${record.errorMessage}` : ""}
+        </p>
+      </div>
+      <div className="flex shrink-0 gap-2">
+        <button
+          type="button"
+          onClick={onRetry}
+          className="rounded-full border border-accent px-3 py-1.5 text-xs font-medium text-accent"
+        >
+          Erneut versuchen
+        </button>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-error"
+        >
+          Entfernen
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SavedRow({ meta, onDelete }: { meta: OfflineMeta; onDelete: () => void }) {
   return (
     <div className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-3">
@@ -96,8 +147,10 @@ function SavedRow({ meta, onDelete }: { meta: OfflineMeta; onDelete: () => void 
  * queue's running item flips back to idle (a save just finished). */
 export function InAppDownloadsPanel() {
   const [saved, setSaved] = useState<OfflineMeta[] | null>(null);
+  const [failed, setFailed] = useState<SaveProgressRecord[] | null>(null);
   const [cancelTarget, setCancelTarget] = useState<{ itemId: string; running: boolean } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<OfflineMeta | null>(null);
+  const [removeFailedTarget, setRemoveFailedTarget] = useState<SaveProgressRecord | null>(null);
   const [busy, setBusy] = useState(false);
   const { showToast } = useToast();
   const version = useQueueVersion();
@@ -106,6 +159,7 @@ export function InAppDownloadsPanel() {
 
   const reloadSaved = () => {
     listOfflineMeta().then(setSaved);
+    listFailedOrInterrupted().then(setFailed);
   };
 
   useEffect(() => {
@@ -119,6 +173,43 @@ export function InAppDownloadsPanel() {
     prevRunningId.current = running?.itemId ?? null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version]);
+
+  const retryFailed = (record: SaveProgressRecord) => {
+    const item = record.sourceItem;
+    if (!item) return;
+    enqueueDownload(
+      item.id,
+      async (signal) => {
+        startTracking(item.id);
+        try {
+          await saveOfflineInApp(item, (pct) => setDownloadProgress(item.id, pct), signal);
+          showToast("Offline in der App gespeichert");
+        } catch (err) {
+          if (!(err instanceof DOMException && err.name === "AbortError")) {
+            showToast("Erneuter Versuch fehlgeschlagen");
+          }
+        } finally {
+          stopTracking(item.id);
+          reloadSaved();
+        }
+      },
+      { title: item.title, thumbnail: item.thumbnailPath }
+    );
+    reloadSaved();
+  };
+
+  const confirmRemoveFailed = async () => {
+    if (!removeFailedTarget) return;
+    setBusy(true);
+    try {
+      await removeFailedEntry(removeFailedTarget.id);
+      setRemoveFailedTarget(null);
+      showToast("Eintrag entfernt");
+      reloadSaved();
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const confirmCancel = () => {
     if (!cancelTarget) return;
@@ -145,16 +236,41 @@ export function InAppDownloadsPanel() {
 
   const hasActivity = Boolean(running) || queued.length > 0;
   const hasSaved = (saved?.length ?? 0) > 0;
+  // Excludes ids currently running/queued - a retry moves an item there
+  // immediately, but its persisted "failed" record isn't cleared until the
+  // save finishes, so without this it would briefly show in both lists.
+  const activeIds = new Set([running?.itemId, ...queued.map((q) => q.itemId)].filter(Boolean));
+  const visibleFailed = (failed ?? []).filter((r) => !activeIds.has(r.id));
+  const hasFailed = visibleFailed.length > 0;
 
   return (
     <div>
-      {!hasActivity && !hasSaved && saved !== null && (
+      {!hasActivity && !hasSaved && !hasFailed && saved !== null && failed !== null && (
         <div>
           <p className="text-sm font-medium text-text-primary">Keine In-App-Downloads</p>
           <p className="mt-1 text-sm text-text-muted">
             Für die App gespeicherte Videos und laufende Downloads erscheinen hier.
           </p>
         </div>
+      )}
+
+      {hasFailed && (
+        <section className="mb-5">
+          <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-text-muted">
+            Fehlgeschlagen / unterbrochen
+          </h2>
+          <ul className="space-y-2">
+            {visibleFailed.map((record) => (
+              <li key={record.id}>
+                <FailedRow
+                  record={record}
+                  onRetry={() => retryFailed(record)}
+                  onRemove={() => setRemoveFailedTarget(record)}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {hasActivity && (
@@ -225,6 +341,17 @@ export function InAppDownloadsPanel() {
         busy={busy}
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmationDialog
+        open={removeFailedTarget !== null}
+        title="Eintrag entfernen?"
+        description="Der fehlgeschlagene/unterbrochene Download wird aus der Aktivität entfernt. Bereits geladene Daten werden verworfen."
+        confirmLabel="Entfernen"
+        destructive
+        busy={busy}
+        onConfirm={confirmRemoveFailed}
+        onCancel={() => setRemoveFailedTarget(null)}
       />
     </div>
   );

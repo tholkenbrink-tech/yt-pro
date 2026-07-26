@@ -3,6 +3,7 @@ import "./globals.css";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { AppShell } from "@/components/AppShell";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { OfflineDownloadsInit } from "@/components/OfflineDownloadsInit";
 import { ThemeInit } from "@/components/ThemeInit";
 import { ToastProvider } from "@/components/ToastProvider";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
@@ -50,6 +51,7 @@ export default function RootLayout({
       <body className="safe-area-shell min-h-screen pb-20 md:pb-0">
         <ThemeInit />
         <ServiceWorkerRegister />
+        <OfflineDownloadsInit />
         <OfflineBanner />
         <ToastProvider>
           <AppShell>{children}</AppShell>

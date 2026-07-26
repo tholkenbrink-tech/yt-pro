@@ -24,7 +24,10 @@ function getConnection(): NetworkInformation | undefined {
 async function isOnWifi(): Promise<boolean | undefined> {
   if (Capacitor.isNativePlatform()) {
     const status = await Network.getStatus();
-    if (status.connectionType === "none") return undefined;
+    // "none" is a definite answer (there is no connection at all, let alone
+    // WiFi) - unlike the "can't tell" case below, this should never fall
+    // through to prompting the user.
+    if (status.connectionType === "none") return false;
     return status.connectionType === "wifi";
   }
 

@@ -3,7 +3,8 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { api, ApiError } from "@/lib/api";
 import type { LibraryItem, LibraryQuery } from "@/lib/types";
 import { MediaCard } from "@/components/MediaCard";
 import { Skeleton } from "@/components/Skeleton";
@@ -114,6 +115,7 @@ const FolderCard = memo(function FolderCard({ group, onOpen }: { group: FolderGr
 });
 
 export default function LibraryPage() {
+  const router = useRouter();
   const selfId = getCachedUserId() ?? undefined;
   const [query, setQuery] = useState<LibraryQuery>({
     sort: "date_desc",
@@ -164,7 +166,15 @@ export default function LibraryPage() {
         }
         setItems(fetched);
       })
-      .catch(async () => {
+      .catch(async (err) => {
+        // A real "not authenticated" response must still send the user to
+        // /login regardless of connectivity - only a network-level failure
+        // (offline, timeout, backend unreachable) should fall back to
+        // showing whatever's stored locally instead.
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          router.replace("/login");
+          return;
+        }
         const offline = await listOfflineMeta();
         if (offline.length > 0) {
           setOfflineOnly(true);

@@ -12,7 +12,14 @@ import { DeviceFileInstructions } from "./DeviceFileInstructions";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { BottomSheet } from "./BottomSheet";
 import { useToast } from "./ToastProvider";
-import { isOffline, removeOffline, saveOfflineInApp, triggerDeviceDownload } from "@/lib/offlineStore";
+import { isOffline, removeOffline, saveOfflineInApp, StorageQuotaError, triggerDeviceDownload } from "@/lib/offlineStore";
+import {
+  clearFailed,
+  markFailed,
+  removeFailedEntry,
+  useDownloadFailed,
+  useDownloadFailureMessage,
+} from "@/lib/downloadFailureStore";
 import {
   forgetDownloadedToDevice,
   isDownloadedToDevice,
@@ -51,6 +58,8 @@ export function DownloadCard({ item, onChanged }: Props) {
   const { showToast } = useToast();
   const { pct: saveProgressPct } = useInAppDownloadProgress(item.id);
   const queueStatus = useDownloadQueueStatus(item.id);
+  const downloadFailed = useDownloadFailed(item.id);
+  const downloadFailureMessage = useDownloadFailureMessage(item.id);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,16 +101,28 @@ export function DownloadCard({ item, onChanged }: Props) {
         signal
       );
       setOffline(true);
+      clearFailed(item.id);
       showToast("Offline in der App gespeichert");
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         showToast("Download abgebrochen");
+      } else if (err instanceof StorageQuotaError) {
+        const message = `Nicht genug Speicherplatz. Benötigt: ~${formatBytes(err.requiredBytes)}, verfügbar: ~${formatBytes(err.availableBytes)}.`;
+        markFailed(item.id, message);
+        showToast(message);
       } else {
-        showToast("Speichern fehlgeschlagen - evtl. zu wenig Speicherplatz");
+        const message = "Speichern fehlgeschlagen. Dein Fortschritt wurde gespeichert - erneut versuchen setzt fort.";
+        markFailed(item.id, message);
+        showToast(message);
       }
     } finally {
       stopTracking(item.id);
     }
+  };
+
+  const removeFailedDownload = () => {
+    removeFailedEntry(item.id);
+    showToast("Fehlgeschlagener Download entfernt");
   };
 
   const handleOfflineButtonClick = async () => {
@@ -116,6 +137,7 @@ export function DownloadCard({ item, onChanged }: Props) {
         showToast("Download übersprungen (nicht im WLAN)");
         return;
       }
+      clearFailed(item.id);
       enqueueDownload(item.id, startOfflineInApp, { title: item.title, thumbnail: item.thumbnail });
     }
   };
@@ -252,12 +274,31 @@ export function DownloadCard({ item, onChanged }: Props) {
                   ? "In Warteschlange - abbrechen"
                   : offline
                     ? "In der App - entfernen"
-                    : "In der App speichern"}
+                    : downloadFailed
+                      ? "Download fehlgeschlagen - erneut versuchen"
+                      : "In der App speichern"}
             </span>
             {savingInApp && (
               <span className="text-xs text-text-muted">{saveProgressPct !== null ? `${saveProgressPct}%` : "…"}</span>
             )}
           </button>
+          {downloadFailed && (
+            <>
+              {downloadFailureMessage && (
+                <p className="px-3 pb-1 text-meta text-error">{downloadFailureMessage}</p>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  removeFailedDownload();
+                }}
+                className="flex min-h-11 items-center rounded-xl px-3 text-left text-sm font-medium text-error"
+              >
+                Fehlgeschlagenen Download entfernen
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={() => {

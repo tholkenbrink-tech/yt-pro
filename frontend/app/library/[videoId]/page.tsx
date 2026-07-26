@@ -91,8 +91,12 @@ export default function VideoPlayerPage() {
           setError("not_found");
         }
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled) return;
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          router.replace("/login");
+          return;
+        }
         // Network unreachable (offline, or API host down) - fall back to
         // whatever we saved on-device for offline playback rather than
         // showing a "deleted from server" message that isn't true here.
@@ -111,6 +115,7 @@ export default function VideoPlayerPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
 
   useEffect(() => {

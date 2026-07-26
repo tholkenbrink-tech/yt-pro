@@ -1,7 +1,7 @@
 /**
  * Client-only settings that have no backing backend endpoint in the Phase 2
- * API contract (download defaults, source defaults, storage thresholds,
- * notifications). Best-effort localStorage persistence, called out as a
+ * API contract (download defaults, source defaults, notifications).
+ * Best-effort localStorage persistence, called out as a
  * deviation in the Phase 2 report - if/when the backend grows matching
  * endpoints these should move to `lib/api.ts` instead.
  *
@@ -55,16 +55,6 @@ export const DEFAULT_SOURCE_DEFAULTS: SourceDefaults = {
   notificationsEnabled: true,
 };
 
-export interface StorageSettings {
-  maxStorageBytes: number | null;
-  warningThresholdBytes: number | null;
-}
-
-export const DEFAULT_STORAGE_SETTINGS: StorageSettings = {
-  maxStorageBytes: null,
-  warningThresholdBytes: null,
-};
-
 function namespacedKey(baseKey: string): string {
   const userId = getCachedUserId();
   return userId ? `${baseKey}:${userId}` : baseKey;
@@ -96,8 +86,3 @@ const SOURCE_DEFAULTS_KEY = "yt-pro:source-defaults";
 export const getSourceDefaults = () => read(SOURCE_DEFAULTS_KEY, DEFAULT_SOURCE_DEFAULTS);
 export const setSourceDefaults = (v: Partial<SourceDefaults>) =>
   write(SOURCE_DEFAULTS_KEY, DEFAULT_SOURCE_DEFAULTS, v);
-
-const STORAGE_SETTINGS_KEY = "yt-pro:storage-settings";
-export const getStorageSettings = () => read(STORAGE_SETTINGS_KEY, DEFAULT_STORAGE_SETTINGS);
-export const setStorageSettings = (v: Partial<StorageSettings>) =>
-  write(STORAGE_SETTINGS_KEY, DEFAULT_STORAGE_SETTINGS, v);

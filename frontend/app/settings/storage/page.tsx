@@ -5,17 +5,15 @@ import { api } from "@/lib/api";
 import type { StorageInfo } from "@/lib/types";
 import { formatBytes } from "@/lib/format";
 import {
-  DEFAULT_STORAGE_SETTINGS,
-  getStorageSettings,
-  setStorageSettings,
-  type StorageSettings,
-} from "@/lib/localSettings";
-import {
+  clearAllFailedOrInterrupted,
   clearAllOffline,
   getOfflineUsageBytes,
+  getPartialUsageBytes,
+  listFailedOrInterrupted,
   listOfflineMeta,
   removeOffline,
   type OfflineMeta,
+  type SaveProgressRecord,
 } from "@/lib/offlineStore";
 import { useToast } from "@/components/ToastProvider";
 
@@ -30,13 +28,15 @@ export default function StorageSettingsPage() {
   const [storage, setStorage] = useState<StorageInfo | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [local, setLocal] = useState<StorageSettings>(DEFAULT_STORAGE_SETTINGS);
   const [offlineCount, setOfflineCount] = useState(0);
   const [offlineBytes, setOfflineBytes] = useState(0);
   const [offlineItems, setOfflineItems] = useState<OfflineMeta[]>([]);
   const [offlineListOpen, setOfflineListOpen] = useState(false);
   const [clearingOffline, setClearingOffline] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [partialBytes, setPartialBytes] = useState(0);
+  const [partialItems, setPartialItems] = useState<SaveProgressRecord[]>([]);
+  const [clearingPartial, setClearingPartial] = useState(false);
   const { showToast } = useToast();
 
   const load = () => {
@@ -52,6 +52,8 @@ export default function StorageSettingsPage() {
       setOfflineItems(items);
     });
     getOfflineUsageBytes().then(setOfflineBytes);
+    listFailedOrInterrupted().then(setPartialItems);
+    getPartialUsageBytes().then(setPartialBytes);
   };
 
   const removeOne = async (id: string) => {
@@ -67,7 +69,6 @@ export default function StorageSettingsPage() {
   useEffect(() => {
     load();
     loadOfflineUsage();
-    setLocal(getStorageSettings());
   }, []);
 
   const clearOffline = async () => {
@@ -78,6 +79,17 @@ export default function StorageSettingsPage() {
       showToast("Offline-Kopien gelöscht");
     } finally {
       setClearingOffline(false);
+    }
+  };
+
+  const clearPartial = async () => {
+    setClearingPartial(true);
+    try {
+      await clearAllFailedOrInterrupted();
+      loadOfflineUsage();
+      showToast("Unvollständige Downloads gelöscht");
+    } finally {
+      setClearingPartial(false);
     }
   };
 
@@ -93,13 +105,6 @@ export default function StorageSettingsPage() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const updateLocal = (patch: Partial<StorageSettings>) => {
-    const next = { ...local, ...patch };
-    setLocal(next);
-    setStorageSettings(patch);
-    showToast("Einstellung gespeichert");
   };
 
   return (
@@ -214,45 +219,32 @@ export default function StorageSettingsPage() {
         })}
       </div>
 
-      {/* No backend endpoint covers these yet - persisted client-side only
-          (best-effort, not enforced server-side). */}
-      <p className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-wide text-text-muted">Weitere Einstellungen (lokal)</p>
-
-      <label htmlFor="max-storage" className="mb-1 block text-sm font-medium">
-        Maximaler Speicherplatz (GB)
-      </label>
-      <input
-        id="max-storage"
-        type="number"
-        min={0}
-        value={local.maxStorageBytes ? local.maxStorageBytes / 1024 ** 3 : ""}
-        onChange={(e) =>
-          updateLocal({
-            maxStorageBytes: e.target.value ? Number(e.target.value) * 1024 ** 3 : null,
-          })
-        }
-        className="mb-3 min-h-11 w-full rounded-xl border border-border bg-surface p-2 text-text-primary"
-      />
-
-      <label htmlFor="warning-threshold" className="mb-1 block text-sm font-medium">
-        Warnschwelle (GB)
-      </label>
-      <input
-        id="warning-threshold"
-        type="number"
-        min={0}
-        value={local.warningThresholdBytes ? local.warningThresholdBytes / 1024 ** 3 : ""}
-        onChange={(e) =>
-          updateLocal({
-            warningThresholdBytes: e.target.value ? Number(e.target.value) * 1024 ** 3 : null,
-          })
-        }
-        className="min-h-11 w-full rounded-xl border border-border bg-surface p-2 text-text-primary"
-      />
-      <p className="mt-1 text-meta text-text-muted">
-        Ab dieser belegten Speichermenge zeigt yt-pro eine Warnung an, damit
-        du rechtzeitig Speicherplatz freigeben kannst, bevor er knapp wird.
-      </p>
+      {partialItems.length > 0 && (
+        <>
+          <p className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-wide text-text-muted">
+            Unvollständige In-App-Downloads
+          </p>
+          <div className="mb-6 rounded-2xl border border-error/30 bg-error/5 p-3.5">
+            <p className="text-sm text-text-primary">
+              {partialItems.length} unvollständige{partialItems.length === 1 ? "r" : ""} Download
+              {partialItems.length === 1 ? "" : "s"} · {formatBytes(partialBytes)} belegt
+            </p>
+            <p className="mt-1 text-meta text-text-muted">
+              Fehlgeschlagene oder unterbrochene Downloads - können in der
+              Aktivität-Ansicht fortgesetzt werden, oder hier gesammelt
+              gelöscht werden, um den belegten Speicher freizugeben.
+            </p>
+            <button
+              type="button"
+              disabled={clearingPartial}
+              onClick={clearPartial}
+              className="mt-3 w-full rounded-xl bg-error/15 py-2 text-[12.5px] font-medium text-error disabled:opacity-50"
+            >
+              Alle unvollständigen Downloads löschen
+            </button>
+          </div>
+        </>
+      )}
     </main>
   );
 }

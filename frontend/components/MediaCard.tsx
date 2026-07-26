@@ -7,14 +7,23 @@ import { api } from "@/lib/api";
 import type { LibraryFolder, LibraryItem } from "@/lib/types";
 import { deriveMediaState } from "@/lib/mediaStateConfig";
 import { MediaStatusBadge } from "./MediaStatusBadge";
-import { SourceBadge } from "./SourceBadge";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { BottomSheet } from "./BottomSheet";
 import { IOSSaveInstructions, SEEN_INSTRUCTIONS_KEY } from "./IOSSaveInstructions";
 import { DeviceFileInstructions } from "./DeviceFileInstructions";
+import { MediaDownloadStatusButton, type DownloadButtonState } from "./MediaDownloadStatusButton";
 import { useToast } from "./ToastProvider";
 import { formatBytes, formatDate, formatDuration } from "@/lib/format";
-import { isOffline, removeOffline, saveOfflineInApp, triggerDeviceDownload } from "@/lib/offlineStore";
+import { removeOffline, saveOfflineInApp, StorageQuotaError, triggerDeviceDownload } from "@/lib/offlineStore";
+import { setOfflineStatus, useIsOffline } from "@/lib/offlineStatusStore";
+import {
+  clearFailed,
+  markFailed,
+  removeFailedEntry,
+  useDownloadFailed,
+  useDownloadFailureMessage,
+} from "@/lib/downloadFailureStore";
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import {
   forgetDownloadedToDevice,
   isDownloadedToDevice,
@@ -53,55 +62,84 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
   const [showMoveSheet, setShowMoveSheet] = useState(false);
   const [folders, setFolders] = useState<LibraryFolder[] | null>(null);
   const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
-  const [offline, setOffline] = useState(false);
   const [deviceDownloaded, setDeviceDownloaded] = useState(false);
   const [removingOffline, setRemovingOffline] = useState(false);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
+  const offline = useIsOffline(item.id);
   const { pct: saveProgressPct } = useInAppDownloadProgress(item.id);
   const queueStatus = useDownloadQueueStatus(item.id);
+  const downloadFailed = useDownloadFailed(item.id);
+  const downloadFailureMessage = useDownloadFailureMessage(item.id);
+  const online = useOnlineStatus();
   const { showToast } = useToast();
   const state = deriveMediaState(item);
   const hasProgress = Boolean(item.progress && !item.progress.completed && item.progress.positionSeconds > 0);
   const progressPct = item.progress?.percentage ?? 0;
+  // Whether this item can actually be opened right now: available whenever
+  // it has an in-app offline copy (playable regardless of connectivity), or
+  // whenever there is a connection to stream it from. Never based on
+  // whether the last metadata refresh succeeded - a stale-but-present item
+  // stays interactive.
+  const unavailableOffline = !online && !offline;
+
+  const blockIfUnavailable = (e: React.MouseEvent) => {
+    if (!unavailableOffline) return;
+    e.preventDefault();
+    showToast("Dieses Video ist offline nicht verfügbar. Verbinde dich mit dem Internet, um es zu öffnen.");
+  };
 
   useEffect(() => {
-    let cancelled = false;
-    isOffline(item.id).then((value) => {
-      if (!cancelled) setOffline(value);
-    });
     setDeviceDownloaded(isDownloadedToDevice(item.id));
-    return () => {
-      cancelled = true;
-    };
   }, [item.id]);
 
   const startOfflineInApp = async (signal: AbortSignal) => {
     startTracking(item.id);
     try {
       await saveOfflineInApp(item, (pct) => setDownloadProgress(item.id, pct), signal);
-      setOffline(true);
+      setOfflineStatus(item.id, true);
+      clearFailed(item.id);
       showToast("Offline in der App gespeichert");
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         showToast("Download abgebrochen");
+      } else if (err instanceof StorageQuotaError) {
+        const message = `Nicht genug Speicherplatz. Benötigt: ~${formatBytes(err.requiredBytes)}, verfügbar: ~${formatBytes(err.availableBytes)}.`;
+        markFailed(item.id, message);
+        showToast(message);
       } else {
-        showToast("Offline-Speicherung fehlgeschlagen - evtl. zu wenig Speicherplatz");
+        const message = "Offline-Speicherung fehlgeschlagen. Dein Fortschritt wurde gespeichert - erneut versuchen setzt fort.";
+        markFailed(item.id, message);
+        showToast(message);
       }
     } finally {
       stopTracking(item.id);
     }
   };
 
+  const removeFailedDownload = () => {
+    removeFailedEntry(item.id);
+    showToast("Fehlgeschlagener Download entfernt");
+  };
+
   const removeOfflineCopy = async () => {
     setRemovingOffline(true);
     try {
       await removeOffline(item.id);
-      setOffline(false);
+      setOfflineStatus(item.id, false);
       setShowRemoveOfflineConfirm(false);
-      showToast("Offline-Kopie entfernt");
+      showToast("Download entfernt");
     } finally {
       setRemovingOffline(false);
     }
+  };
+
+  const startDownload = async () => {
+    if (!(await shouldStartDownload())) {
+      showToast("Download übersprungen (nicht im WLAN)");
+      return;
+    }
+    clearFailed(item.id);
+    enqueueDownload(item.id, startOfflineInApp, { title: item.title, thumbnail: item.thumbnailPath });
   };
 
   const handleOfflineButtonClick = async () => {
@@ -112,13 +150,21 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
     } else if (queueStatus === "queued") {
       cancelQueuedDownload(item.id);
     } else if (queueStatus === "idle") {
-      if (!(await shouldStartDownload())) {
-        showToast("Download übersprungen (nicht im WLAN)");
-        return;
-      }
-      enqueueDownload(item.id, startOfflineInApp, { title: item.title, thumbnail: item.thumbnailPath });
+      await startDownload();
     }
   };
+
+  const downloadButtonState: DownloadButtonState = offline
+    ? "downloaded"
+    : queueStatus === "downloading"
+      ? "downloading"
+      : queueStatus === "queued"
+        ? "queued"
+        : downloadFailed
+          ? "failed"
+          : !online
+            ? "unavailable"
+            : "idle";
 
   const confirmCancelDownload = () => {
     cancelRunningDownload(item.id);
@@ -161,7 +207,7 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
       await api.deleteHistoryItem(item.id);
       if (offline) {
         await removeOffline(item.id);
-        setOffline(false);
+        setOfflineStatus(item.id, false);
       }
       setShowDeleteConfirm(false);
       showToast("Datei von NAS gelöscht");
@@ -198,8 +244,17 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
   const savingInApp = queueStatus !== "idle";
 
   return (
-    <div className="flex items-center gap-3 rounded-2xl p-2.5 transition-colors hover:bg-surface">
-      <Link href={`/library/${item.id}`} className="relative shrink-0">
+    <div
+      className={`flex items-center gap-3 rounded-2xl p-2.5 transition-colors hover:bg-surface ${
+        unavailableOffline ? "opacity-50" : ""
+      }`}
+    >
+      <Link
+        href={`/library/${item.id}`}
+        onClick={blockIfUnavailable}
+        aria-disabled={unavailableOffline}
+        className="relative shrink-0"
+      >
         {item.thumbnailPath && !thumbnailFailed ? (
           <Image
             src={item.thumbnailPath}
@@ -222,71 +277,69 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
         )}
       </Link>
 
-      <Link href={`/library/${item.id}`} className="min-w-0 flex-1">
-        <p className="truncate text-card-title notranslate" translate="no">
-          {item.title}
-        </p>
-        <p className="mt-0.5 truncate text-meta text-text-muted notranslate" translate="no">
-          {item.channelName ? `${item.channelName} · ` : ""}
-          {[formatDuration(item.duration), item.selectedQuality, formatBytes(item.fileSize)]
-            .filter((part) => part && part !== "-")
-            .join(" · ")}
-        </p>
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          {state !== "started" && <MediaStatusBadge state={state} />}
-          {item.isAutomaticallyPrepared && <SourceBadge isAutomatic sourceName={item.sourceName} />}
-          {offline && (
-            <span className="rounded-pill bg-success/15 px-2 py-0.5 text-meta text-success">✓ In der App</span>
-          )}
-          {deviceDownloaded && (
-            <span className="rounded-pill bg-success/15 px-2 py-0.5 text-meta text-success">✓ Auf Gerät</span>
-          )}
-          {showOwner && item.ownerName && (
-            <span className="rounded-pill border border-border px-2 py-0.5 text-meta text-text-muted">
-              👤 {item.ownerName}
-            </span>
-          )}
-        </div>
-        {hasProgress && (
-          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-progress-track">
-            <div
-              className="h-full rounded-full bg-accent"
-              style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
-            />
+      <div className="min-w-0 flex-1">
+        <Link href={`/library/${item.id}`} onClick={blockIfUnavailable} aria-disabled={unavailableOffline} className="block">
+          <p className="truncate text-card-title notranslate" translate="no">
+            {item.title}
+          </p>
+          <p className="mt-0.5 truncate text-meta text-text-muted notranslate" translate="no">
+            {item.channelName ? `${item.channelName} · ` : ""}
+            {[formatDuration(item.duration), item.selectedQuality, formatBytes(item.fileSize)]
+              .filter((part) => part && part !== "-")
+              .join(" · ")}
+          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {state !== "started" && <MediaStatusBadge state={state} />}
+            {offline && (
+              <span className="rounded-pill bg-success/15 px-2 py-0.5 text-meta text-success">✓ In der App</span>
+            )}
+            {deviceDownloaded && (
+              <span className="rounded-pill bg-success/15 px-2 py-0.5 text-meta text-success">✓ Auf Gerät</span>
+            )}
+            {unavailableOffline && (
+              <span className="rounded-pill border border-border px-2 py-0.5 text-meta text-text-muted">
+                ☁️ Nur online
+              </span>
+            )}
+            {showOwner && item.ownerName && (
+              <span className="rounded-pill border border-border px-2 py-0.5 text-meta text-text-muted">
+                👤 {item.ownerName}
+              </span>
+            )}
           </div>
-        )}
-      </Link>
+          {hasProgress && (
+            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-progress-track">
+              <div
+                className="h-full rounded-full bg-accent"
+                style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
+              />
+            </div>
+          )}
+        </Link>
+        <div className="mt-1.5 flex justify-end">
+          <MediaDownloadStatusButton
+            state={downloadButtonState}
+            progressPct={saveProgressPct}
+            unavailableReason={!online ? "Keine Internetverbindung" : undefined}
+            onDownload={handleOfflineButtonClick}
+            onCancelQueued={handleOfflineButtonClick}
+            onCancelDownloading={handleOfflineButtonClick}
+            onRetry={handleOfflineButtonClick}
+            onRequestRemove={handleOfflineButtonClick}
+          />
+        </div>
+      </div>
 
       <div className="flex shrink-0 flex-col items-center gap-2">
         <Link
           href={`/library/${item.id}?autoplay=1`}
+          onClick={blockIfUnavailable}
+          aria-disabled={unavailableOffline}
           aria-label={hasProgress ? "Fortsetzen" : "Abspielen"}
           className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-sm text-white"
         >
           ▶
         </Link>
-        {!offline && (
-          <button
-            type="button"
-            aria-label={
-              queueStatus === "downloading"
-                ? "Download abbrechen"
-                : queueStatus === "queued"
-                  ? "In Warteschlange - abbrechen"
-                  : "In der App speichern"
-            }
-            onClick={handleOfflineButtonClick}
-            className="flex h-7 w-7 items-center justify-center rounded-full border border-border text-sm text-text-muted"
-          >
-            {savingInApp ? (
-              <span className="text-[10px] font-medium">
-                {saveProgressPct !== null ? `${saveProgressPct}%` : "…"}
-              </span>
-            ) : (
-              "⬇"
-            )}
-          </button>
-        )}
         <button
           type="button"
           aria-label="Weitere Aktionen"
@@ -314,13 +367,32 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
                 : queueStatus === "queued"
                   ? "In Warteschlange - abbrechen"
                   : offline
-                    ? "Offline-Kopie in der App entfernen"
-                    : "In der App speichern"}
+                    ? "Download entfernen"
+                    : downloadFailed
+                      ? "Download fehlgeschlagen - erneut versuchen"
+                      : "In der App speichern"}
             </span>
             {savingInApp && (
               <span className="text-xs text-text-muted">{saveProgressPct !== null ? `${saveProgressPct}%` : "…"}</span>
             )}
           </button>
+          {downloadFailed && (
+            <>
+              {downloadFailureMessage && (
+                <p className="px-3 pb-1 text-meta text-error">{downloadFailureMessage}</p>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  removeFailedDownload();
+                }}
+                className="flex min-h-11 items-center rounded-xl px-3 text-left text-sm font-medium text-error"
+              >
+                Fehlgeschlagenen Download entfernen
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -412,9 +484,9 @@ export const MediaCard = memo(function MediaCard({ item, onChanged, showOwner }:
 
       <ConfirmationDialog
         open={showRemoveOfflineConfirm}
-        title="Offline-Kopie entfernen?"
-        description="Die Datei wird aus der App entfernt. Falls du sie zusätzlich auf dein Gerät heruntergeladen hast (z. B. in Dateien), bleibt diese davon unberührt und muss dort separat gelöscht werden."
-        confirmLabel="Entfernen"
+        title="Download entfernen?"
+        description="Die heruntergeladene Datei wird von diesem Gerät entfernt. Das Video bleibt in deiner Mediathek verfügbar. Falls du sie zusätzlich auf dein Gerät heruntergeladen hast (z. B. in Dateien), bleibt diese davon unberührt und muss dort separat gelöscht werden."
+        confirmLabel="Download entfernen"
         destructive
         busy={removingOffline}
         onConfirm={removeOfflineCopy}

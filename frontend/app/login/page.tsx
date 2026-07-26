@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,8 +19,12 @@ export default function LoginPage() {
     try {
       await api.login(username, password);
       router.push("/");
-    } catch {
-      setError("Anmeldung fehlgeschlagen. Benutzername oder Passwort falsch.");
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? "Anmeldung fehlgeschlagen. Benutzername oder Passwort falsch."
+          : "Keine Verbindung zum Server. Prüfe deine Internetverbindung."
+      );
     } finally {
       setLoading(false);
     }
