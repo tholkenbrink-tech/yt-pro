@@ -10,6 +10,7 @@ import { isNativeIOS } from "@/lib/nativePlayer";
 import { getPlayerSettings } from "@/lib/playerSettings";
 import {
   consumePendingWebPlayerAutoPlay,
+  getWebPlayerSnapshot,
   registerWebPlayerFrameSink,
   setWebPlayerState,
   setWebPlayerVideoElement,
@@ -69,6 +70,31 @@ export function PersistentVideoPlayer() {
     videoRef.current?.load();
   }, [src]);
 
+  // Safety net: a source that never actually starts playing (a bad mime
+  // type the browser silently refuses, a corrupted local file, or any other
+  // failure mode that doesn't cleanly fire the video's own "error" event)
+  // must not leave the user staring at an infinite spinner with nothing to
+  // do - surface a real, actionable error after a generous grace period
+  // instead. Cleared/re-armed on every new src so it only ever judges the
+  // load currently in flight.
+  useEffect(() => {
+    if (!src) return;
+    const timeout = setTimeout(() => {
+      const current = getWebPlayerSnapshot();
+      if (!current.isBuffering) return;
+      console.error(
+        "PersistentVideoPlayer: playback stalled - readyState",
+        videoRef.current?.readyState,
+        "networkState",
+        videoRef.current?.networkState,
+        "src",
+        src
+      );
+      setWebPlayerState({ error: "network", isBuffering: false });
+    }, 12_000);
+    return () => clearTimeout(timeout);
+  }, [src]);
+
   useEffect(() => {
     backgroundPlaybackModeRef.current = backgroundPlaybackMode;
   }, [backgroundPlaybackMode]);
@@ -123,7 +149,20 @@ export function PersistentVideoPlayer() {
       .then((blob) => {
         if (cancelled) return true;
         if (blob) {
-          const objectUrl = URL.createObjectURL(blob);
+          // The blob's own .type comes from whatever Content-Type the
+          // backend sent at download time (see offlineStore.ts) - the
+          // backend itself falls back to "application/octet-stream" for
+          // any item with no recorded mimeType, which WKWebView's <video>
+          // silently refuses to ever play (no error event, just stuck
+          // buffering forever). Re-wrapping with an explicit video mime
+          // type if the stored one is missing/generic is a cheap,
+          // reference-only operation (no byte copy) that guarantees
+          // playback isn't blocked by a bad Content-Type baked in at
+          // download time.
+          const playableBlob = blob.type.startsWith("video/") || blob.type.startsWith("audio/")
+            ? blob
+            : new Blob([blob], { type: "video/mp4" });
+          const objectUrl = URL.createObjectURL(playableBlob);
           offlineObjectUrlRef.current = objectUrl;
           setSrc(objectUrl);
           setWebPlayerState({ isOfflineSource: true, error: null });
@@ -260,6 +299,12 @@ export function PersistentVideoPlayer() {
     const onPause = () => saveProgress();
     const onEnterPip = () => saveProgress();
     const onError = () => {
+      // Logged for remote debugging (Safari's remote Web Inspector, same as
+      // NativePlayer.present's failure logging) - MediaError.code/message is
+      // far more specific than the generic banner shown to the user (e.g.
+      // code 4 = MEDIA_ERR_SRC_NOT_SUPPORTED, which is exactly what a bad
+      // Content-Type/mime-type on the source produces).
+      console.error("PersistentVideoPlayer video error:", video.error?.code, video.error?.message);
       setWebPlayerState({ error: "network", isBuffering: false });
     };
     const onCanPlay = () => setWebPlayerState({ isBuffering: false });

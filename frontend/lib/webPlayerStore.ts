@@ -167,11 +167,22 @@ export function selectWebPlayerBackgroundMode(mode: BackgroundPlaybackMode): voi
  * against a page that no longer owns it (navigated away, or a different
  * video opened elsewhere) repositioning someone else's. */
 let frameSink: ((rect: { x: number; y: number; width: number; height: number }) => void) | null = null;
+// Remembers the last measurement per item so a sink registering *after* the
+// placeholder already reported one (a real, observed race between
+// PersistentVideoPlayer's registration effect and VideoPlayer's own
+// measure-on-mount effect, both keyed on the same itemId change but run as
+// separate React commits) still gets it immediately, instead of leaving
+// PersistentVideoPlayer stuck at its "no measurement yet" 1x1 invisible
+// fallback size until some unrelated resize/scroll happens to fire.
+let lastKnownFrame: { itemId: string; rect: { x: number; y: number; width: number; height: number } } | null = null;
 
 export function registerWebPlayerFrameSink(
   sink: ((rect: { x: number; y: number; width: number; height: number }) => void) | null
 ): void {
   frameSink = sink;
+  if (sink && lastKnownFrame && snapshot.meta?.itemId === lastKnownFrame.itemId && snapshot.mode === "inline") {
+    sink(lastKnownFrame.rect);
+  }
 }
 
 export function updateWebPlayerFrame(
@@ -180,6 +191,7 @@ export function updateWebPlayerFrame(
 ): void {
   if (snapshot.meta?.itemId !== itemId || snapshot.mode !== "inline") return;
   if (rect.width <= 0 || rect.height <= 0) return;
+  lastKnownFrame = { itemId, rect };
   frameSink?.(rect);
 }
 
