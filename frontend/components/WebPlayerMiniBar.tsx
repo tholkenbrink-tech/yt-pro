@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { isNativeIOS } from "@/lib/nativePlayer";
 import { closeWebPlayer, useWebPlayerState } from "@/lib/webPlayerStore";
 
 /**
@@ -19,7 +18,11 @@ export function WebPlayerMiniBar() {
   const router = useRouter();
   const { meta, mode } = useWebPlayerState();
 
-  if (isNativeIOS() || !meta || mode !== "mini") return null;
+  // No isNativeIOS() check (see PersistentVideoPlayer.tsx's matching note) -
+  // meta/mode only ever reflect the web player, which now also handles
+  // offline playback inside the native shell, so this must be able to show
+  // there too or a minimized offline video would have no way back or close.
+  if (!meta || mode !== "mini") return null;
 
   return (
     <div

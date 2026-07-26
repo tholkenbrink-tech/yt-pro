@@ -6,7 +6,6 @@ import { getOfflineBlob } from "@/lib/offlineStore";
 import { useDownloadQueueStatus } from "@/lib/downloadQueueStore";
 import { shouldStream } from "@/lib/wifiGate";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
-import { isNativeIOS } from "@/lib/nativePlayer";
 import { getPlayerSettings } from "@/lib/playerSettings";
 import {
   consumePendingWebPlayerAutoPlay,
@@ -469,7 +468,23 @@ export function PersistentVideoPlayer() {
     };
   }, [itemId, meta?.title, meta?.channelName, meta?.thumbnail, backgroundPlaybackMode]);
 
-  if (isNativeIOS() || !meta) return null;
+  // No isNativeIOS() check here (there used to be one) - VideoPlayer.tsx is
+  // what decides whether the native or web player should handle a given
+  // item (native only when online; web - this component - whenever offline,
+  // even inside the native shell, since only the web <video>+blob: URL path
+  // can play a downloaded file at all). meta is only ever set here via
+  // loadWebPlayerItem(), which only WebVideoPlayer calls - so by the time
+  // meta is non-null, that decision has already correctly been made
+  // upstream. Re-checking isNativeIOS() independently here used to silently
+  // override that decision: this component would render nothing at all
+  // inside the native shell regardless of meta, meaning the actual <video>
+  // DOM element it owns never existed - so `getOfflineBlob`/setSrc/
+  // setWebPlayerState still ran (hooks always run even when a component
+  // returns null - only the DOM output was suppressed) and reported
+  // isOfflineSource correctly, while nothing was ever actually mounted for
+  // canplay/waiting/error to fire on. That's what an offline video sitting
+  // in an infinite spinner with the "offline gespeichert" label showing was.
+  if (!meta) return null;
 
   const wrapperStyle: React.CSSProperties =
     mode === "inline" && frame
