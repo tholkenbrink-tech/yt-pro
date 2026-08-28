@@ -108,7 +108,7 @@ export default function DownloadPage() {
     try {
       const clipboardText = await navigator.clipboard.readText();
       if (clipboardText) {
-        updateText(text ? `${text}\n${clipboardText}` : clipboardText);
+        updateText(clipboardText);
         showToast("Link eingefügt");
       }
     } catch {
