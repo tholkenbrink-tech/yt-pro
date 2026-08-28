@@ -4,8 +4,10 @@ import { OfflineBanner } from "@/components/OfflineBanner";
 import { AppShell } from "@/components/AppShell";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { OfflineDownloadsInit } from "@/components/OfflineDownloadsInit";
+import { ShellInit } from "@/components/ShellInit";
 import { ThemeInit } from "@/components/ThemeInit";
 import { ToastProvider } from "@/components/ToastProvider";
+import { SHELL_INIT_SCRIPT } from "@/lib/shell";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 export const metadata: Metadata = {
@@ -47,9 +49,13 @@ export default function RootLayout({
         {/* Blocking script (runs before paint) to avoid a flash of the
             wrong theme when a manual override is stored. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Flags whether the page owns the bottom of the screen, so the
+            bottom nav can size its safe-area padding before first paint. */}
+        <script dangerouslySetInnerHTML={{ __html: SHELL_INIT_SCRIPT }} />
       </head>
       <body className="safe-area-shell min-h-screen pb-20 md:pb-0">
         <ThemeInit />
+        <ShellInit />
         <ServiceWorkerRegister />
         <OfflineDownloadsInit />
         <OfflineBanner />

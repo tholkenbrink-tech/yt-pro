@@ -17,6 +17,18 @@
 }
 
 .bottom-nav {
+  /* In a browser tab the browser's own toolbar sits below the page and has
+     already cleared the home indicator, so adding the inset on top of it
+     just opens a gap between the two bars. Safari happens to report a 0
+     inset while its toolbar is up, but browsers that keep reporting the
+     full inset (Aloha, for one) left a ~34px hole - so key this off the
+     shell rather than off the inset value. Trade-off: in a browser whose
+     toolbar auto-hides on scroll, the nav then sits 0.5rem from the screen
+     edge instead of clearing the home indicator. */
+  padding-bottom: 0.5rem;
+}
+
+:root[data-shell="app"] .bottom-nav {
   padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
 }
 
