@@ -15,6 +15,7 @@ os.environ["CORS_ORIGINS"] = "http://testserver"
 os.environ["TEMP_DIR"] = tempfile.mkdtemp(prefix="yt_pro_temp_")
 os.environ["COOKIE_DIR"] = tempfile.mkdtemp(prefix="yt_pro_cookies_")
 os.environ["MIN_FREE_DISK_BYTES"] = "1"  # low bar so disk-guard tests can opt in explicitly
+os.environ["DOWNLOAD_ITEM_DELAY_SECONDS"] = "0"  # no real sleeping between a job's items
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

@@ -4,7 +4,9 @@ import json
 import logging
 import os
 import re
+import time
 import traceback
+from collections import deque
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -23,6 +25,7 @@ from app.models.monitored_source_item import MonitoredSourceItem
 from app.models.status import IN_PROGRESS_STATUSES, Status
 from app.services import ytdlp_runner
 from app.services.format_selector import build_format_selector
+from app.services.ytdlp_errors import LOG_TAIL_LINES, classify_download_failure
 
 logger = logging.getLogger("yt_pro.worker")
 
@@ -72,15 +75,18 @@ def _profile_for(db, quality: str) -> DownloadProfile:
     return profile
 
 
-def _make_progress_handler(db, item: DownloadItem, job: DownloadJob):
+def _make_progress_handler(db, item: DownloadItem, job: DownloadJob, log_tail: deque[str]):
     def handler(line: str):
         match = PROGRESS_RE.search(line)
         if not match:
             # Non-progress lines are yt-dlp's own warnings/errors -- surface them in the
             # worker log instead of silently dropping them, otherwise a failure only ever
             # shows the generic "yt-dlp exited with code N" with no way to diagnose why.
+            # They are also kept in log_tail so a failure can be classified into a message
+            # the app itself can show (the NAS log isn't reachable from a phone).
             if line.strip():
                 logger.info("yt-dlp[%s]: %s", item.id, line.strip())
+                log_tail.append(line.strip())
             return
         groups = match.groupdict()
         try:
@@ -165,7 +171,14 @@ def process_job(job_id: str) -> None:
 
         profile = _profile_for(db, job.selectedQuality)
 
-        for item in list(job.items):
+        for index, item in enumerate(list(job.items)):
+            # A playlist job used to fetch its items back-to-back with no gap,
+            # which is what tips YouTube into answering with HTTP 429 / a bot
+            # check partway through - the first videos succeed, later ones fail.
+            # Only between items, never before the first one, so a single-video
+            # download keeps its current latency.
+            if index and settings.DOWNLOAD_ITEM_DELAY_SECONDS > 0:
+                time.sleep(settings.DOWNLOAD_ITEM_DELAY_SECONDS)
             out_dir = _job_output_dir(db, job, item)
             _process_item(db, job, item, profile, out_dir)
 
@@ -179,6 +192,9 @@ def process_job(job_id: str) -> None:
 
 
 def _process_item(db, job: DownloadJob, item: DownloadItem, profile: DownloadProfile, out_dir: str) -> None:
+    # Declared outside the try so the failure path below can still read
+    # whatever yt-dlp managed to say before it died.
+    log_tail: deque[str] = deque(maxlen=LOG_TAIL_LINES)
     try:
         _set_status(db, job, item, Status.PREPARING)
 
@@ -205,6 +221,16 @@ def _process_item(db, job: DownloadJob, item: DownloadItem, profile: DownloadPro
         args = [
             "yt-dlp",
             "--newline",
+            # Retries and pacing: a single transient 429/403 or a dropped
+            # fragment used to fail the whole item outright. --sleep-requests
+            # spaces out the extractor's own API calls, which is what YouTube
+            # rate-limits on, and http:exp backs off instead of hammering.
+            "--retries", "10",
+            "--fragment-retries", "10",
+            "--extractor-retries", "3",
+            "--socket-timeout", "30",
+            "--sleep-requests", str(settings.YTDLP_SLEEP_REQUESTS_SECONDS),
+            "--retry-sleep", "http:exp=2:60",
             "-f", selector,
             "--merge-output-format", profile.preferredContainer if not profile.audioOnly else "m4a",
             "--write-info-json",
@@ -218,7 +244,7 @@ def _process_item(db, job: DownloadJob, item: DownloadItem, profile: DownloadPro
 
         status_value = Status.DOWNLOADING_AUDIO if profile.audioOnly else Status.DOWNLOADING_VIDEO
         _set_status(db, job, item, status_value)
-        handler = _make_progress_handler(db, item, job)
+        handler = _make_progress_handler(db, item, job, log_tail)
         returncode = ytdlp_runner.run_download(args, on_progress_line=handler)
         if returncode != 0:
             raise RuntimeError(f"yt-dlp exited with code {returncode}")
@@ -271,7 +297,9 @@ def _process_item(db, job: DownloadJob, item: DownloadItem, profile: DownloadPro
     except Exception as exc:  # noqa: BLE001 - worker boundary, must not crash the loop
         logger.error("item %s failed: %s\n%s", item.id, exc, traceback.format_exc())
         item.status = Status.FAILED.value
-        item.errorMessage = "Download failed. See server logs for details."
+        # str(exc) is part of the haystack so failures raised here rather than
+        # by yt-dlp (a full disk surfacing as OSError, say) classify too.
+        item.errorMessage = classify_download_failure([*log_tail, str(exc)])
         job.errorMessage = item.errorMessage
         db.commit()
         _cleanup_partial_files(out_dir, item.id)

@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     MAX_CONCURRENT_JOBS: int = 2
     MIN_FREE_DISK_BYTES: int = 2 * 1024 * 1024 * 1024
 
+    # Pacing against YouTube's rate limiting, both in seconds. Downloading
+    # several videos in a row from one IP is what triggers HTTP 429 / the bot
+    # check; a gap between the extractor's API calls and between a job's items
+    # costs a few seconds per video and avoids most of it. Raise either if
+    # multi-video jobs still fail partway through.
+    YTDLP_SLEEP_REQUESTS_SECONDS: float = 1.0
+    DOWNLOAD_ITEM_DELAY_SECONDS: float = 3.0
+
     CORS_ORIGINS: str = ""
 
     TEMP_DIR: str = "/data/temp"
