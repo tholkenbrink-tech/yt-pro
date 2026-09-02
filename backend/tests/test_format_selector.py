@@ -20,7 +20,19 @@ def _profile(**overrides):
 
 def test_audio_only_selector():
     selector = build_format_selector(_profile(name="audio", maximumResolution=None, audioOnly=True))
-    assert selector == "bestaudio[acodec^=mp4a]/bestaudio/best"
+    assert selector == "bestaudio[acodec^=mp4a]/bestaudio[ext=m4a]/bestaudio/best"
+
+
+def test_audio_only_selector_prefers_aac_over_opus():
+    """YouTube offers Opus at the same bitrate and it is the better codec, but
+    iOS cannot play Opus-in-WebM without a transcode - and this app has no
+    re-encode pass, so the AAC track has to win."""
+    selector = build_format_selector(_profile(name="audio", maximumResolution=None, audioOnly=True))
+    choices = selector.split("/")
+    assert choices[0] == "bestaudio[acodec^=mp4a]"
+    # The container-constrained fallback must come before the bare ones, or a
+    # video without mp4a lands an Opus stream in a file named .m4a.
+    assert choices.index("bestaudio[ext=m4a]") < choices.index("bestaudio")
 
 
 def test_capped_resolution_selector():

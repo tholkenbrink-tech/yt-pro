@@ -37,6 +37,10 @@ const QUALITY_OPTIONS = [
   { name: "480p", label: "480p" },
   { name: "720p", label: "720p" },
   { name: "1080p", label: "1080p" },
+  // Audio-only (the seeded "audio" profile): AAC ~128 kbps in m4a, which is
+  // the same track already muxed into the video downloads - so it plays on
+  // iOS with no re-encode, exactly like they do.
+  { name: "audio", label: "Audio" },
 ];
 
 export default function DownloadPage() {

@@ -286,7 +286,11 @@ def _process_item(db, job: DownloadJob, item: DownloadItem, profile: DownloadPro
         item.mediaPath = final_path
         item.fileName = final_name
         item.fileSize = os.path.getsize(final_path)
-        item.mimeType = "audio/m4a" if profile.audioOnly else "video/mp4"
+        # "audio/m4a" is not a registered type - .m4a is an MP4 container, and
+        # AVFoundation/Safari want "audio/mp4". The old string reached the
+        # <video> element and the offline store as-is, where an unrecognized
+        # type is exactly what makes iOS refuse to play a file.
+        item.mimeType = "audio/mp4" if profile.audioOnly else "video/mp4"
         item.conversionNote = conversion_note
         retention_hours = _get_retention_hours()
         item.expiresAt = (

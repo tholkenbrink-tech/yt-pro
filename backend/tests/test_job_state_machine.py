@@ -75,3 +75,27 @@ def test_job_marks_failed_on_ytdlp_error(db_session, test_user, monkeypatch):
     item = db_session.query(DownloadItem).filter_by(jobId=job.id).one()
     assert item.status == Status.FAILED.value
     assert item.errorMessage is not None
+
+
+def test_audio_only_item_gets_a_playable_mime_type(db_session, test_user, monkeypatch):
+    """Audio downloads land in an .m4a, which is an MP4 container - the item
+    has to be labelled audio/mp4 for AVFoundation/Safari to play it. The old
+    "audio/m4a" is not a registered type and reached the <video> element and
+    the offline store verbatim."""
+    monkeypatch.setattr(download_job.ytdlp_runner, "run_download", _fake_run_download)
+
+    job = create_job(
+        db_session,
+        user_id=test_user.id,
+        source_url="https://youtube.com/watch?v=aud123",
+        source_type="video",
+        quality="audio",
+        items=[{"youtubeId": "aud123", "title": "Nur Ton"}],
+    )
+
+    download_job.process_job(job.id)
+
+    db_session.expire_all()
+    item = db_session.query(DownloadItem).filter_by(jobId=job.id).one()
+    assert item.status == Status.READY.value
+    assert item.mimeType == "audio/mp4"

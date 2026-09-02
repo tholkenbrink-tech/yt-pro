@@ -15,7 +15,12 @@ def build_format_selector(profile: DownloadProfile) -> str:
     back to the codec-agnostic "best" selection when no H.264 source format
     exists at all, so a download still succeeds rather than failing outright."""
     if profile.audioOnly:
-        return "bestaudio[acodec^=mp4a]/bestaudio/best"
+        # Same no-re-encode rule as video: take YouTube's AAC track (itag 140,
+        # ~128 kbps) rather than the Opus one, which is the better codec but
+        # unplayable on iOS without a transcode. [ext=m4a] before the bare
+        # fallbacks so a missing mp4a doesn't land an Opus/WebM stream in a
+        # file named .m4a, which plays nowhere on the phone.
+        return "bestaudio[acodec^=mp4a]/bestaudio[ext=m4a]/bestaudio/best"
 
     height_filter = f"[height<={profile.maximumResolution}]" if profile.maximumResolution else ""
 

@@ -10,8 +10,8 @@ import {
 import { useToast } from "@/components/ToastProvider";
 import { Switch } from "@/components/Switch";
 
-const QUALITIES = ["original", "1080p", "720p", "480p"];
-const QUALITY_LABELS: Record<string, string> = { original: "Original" };
+const QUALITIES = ["original", "1080p", "720p", "480p", "audio"];
+const QUALITY_LABELS: Record<string, string> = { original: "Original", audio: "Audio (nur Ton)" };
 
 function SettingRow({
   label,
