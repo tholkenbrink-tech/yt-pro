@@ -94,6 +94,13 @@ _RULES: list[tuple[re.Pattern[str], str]] = [
 # noise for a phone-sized error line.
 _ERROR_PREFIX_RE = re.compile(r"^ERROR:\s*(?:\[[^\]]+\]\s*)?(?:[\w-]{6,15}:\s*)?")
 
+# A rejected option prints "yt-dlp: error: ..." and exits before downloading
+# anything - no "ERROR:" line at all. That is always our own bug rather than
+# anything the user did, but it still beats sending them to a log they cannot
+# reach from a phone (an invalid --merge-output-format broke every audio
+# download exactly this way).
+_USAGE_ERROR_RE = re.compile(r"^yt-dlp:\s*error:\s*", re.I)
+
 
 def _truncate(message: str) -> str:
     if len(message) <= _MAX_MESSAGE_LENGTH:
@@ -106,6 +113,10 @@ def _last_error_line(lines: list[str]) -> Optional[str]:
         stripped = line.strip()
         if stripped.startswith("ERROR:"):
             detail = _ERROR_PREFIX_RE.sub("", stripped).strip()
+            if detail:
+                return detail
+        if _USAGE_ERROR_RE.match(stripped):
+            detail = _USAGE_ERROR_RE.sub("", stripped).strip()
             if detail:
                 return detail
     return None

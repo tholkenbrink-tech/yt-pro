@@ -99,3 +99,54 @@ def test_audio_only_item_gets_a_playable_mime_type(db_session, test_user, monkey
     item = db_session.query(DownloadItem).filter_by(jobId=job.id).one()
     assert item.status == Status.READY.value
     assert item.mimeType == "audio/mp4"
+
+
+def test_audio_only_download_omits_merge_output_format(db_session, test_user, monkeypatch):
+    """--merge-output-format only accepts video containers, so passing "m4a"
+    for the audio profile made yt-dlp exit on a usage error before it
+    downloaded anything - every audio download failed. An audio-only download
+    is a single stream and needs no merge flag at all."""
+    captured: list[list[str]] = []
+
+    def _capturing_run_download(args, on_progress_line=None):
+        captured.append(args)
+        return _fake_run_download(args, on_progress_line)
+
+    monkeypatch.setattr(download_job.ytdlp_runner, "run_download", _capturing_run_download)
+
+    job = create_job(
+        db_session,
+        user_id=test_user.id,
+        source_url="https://youtube.com/watch?v=aud456",
+        source_type="video",
+        quality="audio",
+        items=[{"youtubeId": "aud456", "title": "Nur Ton"}],
+    )
+    download_job.process_job(job.id)
+
+    assert captured, "run_download was never called"
+    assert "--merge-output-format" not in captured[0]
+
+
+def test_video_download_still_sets_merge_output_format(db_session, test_user, monkeypatch):
+    captured: list[list[str]] = []
+
+    def _capturing_run_download(args, on_progress_line=None):
+        captured.append(args)
+        return _fake_run_download(args, on_progress_line)
+
+    monkeypatch.setattr(download_job.ytdlp_runner, "run_download", _capturing_run_download)
+
+    job = create_job(
+        db_session,
+        user_id=test_user.id,
+        source_url="https://youtube.com/watch?v=vid456",
+        source_type="video",
+        quality="720p",
+        items=[{"youtubeId": "vid456", "title": "Mit Bild"}],
+    )
+    download_job.process_job(job.id)
+
+    assert captured, "run_download was never called"
+    args = captured[0]
+    assert args[args.index("--merge-output-format") + 1] == "mp4"

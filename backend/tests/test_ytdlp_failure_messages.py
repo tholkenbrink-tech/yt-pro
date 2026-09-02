@@ -150,3 +150,14 @@ def test_multi_item_job_sleeps_between_items_only(db_session, test_user, monkeyp
 
     # Three items, two gaps - nothing before the first download.
     assert sleeps == [3.0, 3.0]
+
+
+def test_usage_error_is_surfaced_instead_of_the_generic_message():
+    """A rejected option prints "yt-dlp: error: ..." and never emits an
+    "ERROR:" line, so it used to fall through to "details are in the worker
+    log" - the one place a phone cannot look."""
+    message = classify_download_failure(
+        ['yt-dlp: error: invalid merge output format "m4a" given', "yt-dlp exited with code 2"]
+    )
+    assert "Worker-Log" not in message
+    assert "invalid merge output format" in message

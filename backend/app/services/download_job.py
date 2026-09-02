@@ -232,7 +232,19 @@ def _process_item(db, job: DownloadJob, item: DownloadItem, profile: DownloadPro
             "--sleep-requests", str(settings.YTDLP_SLEEP_REQUESTS_SECONDS),
             "--retry-sleep", "http:exp=2:60",
             "-f", selector,
-            "--merge-output-format", profile.preferredContainer if not profile.audioOnly else "m4a",
+        ]
+
+        # --merge-output-format only accepts video containers (mp4/mkv/webm/
+        # mov/avi/flv) and only means anything when two streams actually get
+        # merged. Passing "m4a" for an audio-only profile made yt-dlp exit on
+        # a usage error *before downloading anything*, so every audio download
+        # failed. Audio-only is a single stream: yt-dlp writes it as .m4a and,
+        # since ffmpeg is in the image, runs FixupM4a itself to correct the
+        # DASH container into a plain MP4 one that AVFoundation will play.
+        if not profile.audioOnly:
+            args += ["--merge-output-format", profile.preferredContainer]
+
+        args += [
             "--write-info-json",
             "-o", part_template,
             source_url,
