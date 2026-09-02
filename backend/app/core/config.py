@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = ""
 
     TEMP_DIR: str = "/data/temp"
+    # Audio downloads all land here, flat, regardless of which playlist or
+    # monitored source they came from - kept under TEMP_DIR (rather than as a
+    # sibling of it) so it needs no extra bind mount on the NAS and still
+    # counts towards the storage screen, which walks TEMP_DIR.
+    AUDIO_SUBDIR: str = "YT Audio"
     THUMBNAIL_DIR: str = "/data/thumbnails"
     COOKIE_DIR: str = "/data/cookies"
     DATABASE_DIR: str = "/data/database"

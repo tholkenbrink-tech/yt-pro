@@ -124,7 +124,7 @@ def _set_status(db, job: DownloadJob, item: Optional[DownloadItem], value: Statu
     db.commit()
 
 
-def _job_output_dir(db, job: DownloadJob, item: DownloadItem) -> str:
+def _job_output_dir(db, job: DownloadJob, item: DownloadItem, profile: DownloadProfile) -> str:
     """One shared folder per playlist/source - resolved from item.folderId
     (see folder_service.get_or_create_folder), so downloads of the same
     playlist/source always land in the same NAS directory no matter which
@@ -132,7 +132,16 @@ def _job_output_dir(db, job: DownloadJob, item: DownloadItem) -> str:
     playlist link" downloads. A single manual video gets no folder at all -
     it's placed directly in TEMP_DIR (see _process_item's finalization,
     which names it after the video title) so browsing the NAS share doesn't
-    mean opening one UUID-named folder per video."""
+    mean opening one UUID-named folder per video.
+
+    Audio is the exception: it ignores the folder structure entirely and goes
+    flat into TEMP_DIR/AUDIO_SUBDIR, so the audio library stays browsable as
+    one place instead of being scattered across the video playlists' folders."""
+    if profile.audioOnly:
+        path = os.path.join(settings.TEMP_DIR, settings.AUDIO_SUBDIR)
+        os.makedirs(path, exist_ok=True)
+        return path
+
     if item.folderId:
         folder = db.get(Folder, item.folderId)
         if folder:
@@ -179,7 +188,7 @@ def process_job(job_id: str) -> None:
             # download keeps its current latency.
             if index and settings.DOWNLOAD_ITEM_DELAY_SECONDS > 0:
                 time.sleep(settings.DOWNLOAD_ITEM_DELAY_SECONDS)
-            out_dir = _job_output_dir(db, job, item)
+            out_dir = _job_output_dir(db, job, item, profile)
             _process_item(db, job, item, profile, out_dir)
 
         failed = any(i.status == Status.FAILED.value for i in job.items)

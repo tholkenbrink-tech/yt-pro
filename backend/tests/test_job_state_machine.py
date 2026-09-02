@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.models.download_item import DownloadItem
 from app.models.status import Status
 from app.services import download_job
+from app.services.folder_service import get_or_create_folder
 from app.services.job_service import create_job
 
 
@@ -150,3 +151,57 @@ def test_video_download_still_sets_merge_output_format(db_session, test_user, mo
     assert captured, "run_download was never called"
     args = captured[0]
     assert args[args.index("--merge-output-format") + 1] == "mp4"
+
+
+def test_audio_items_land_flat_in_the_audio_folder(db_session, test_user, monkeypatch):
+    """Audio ignores the playlist/folder structure: every audio file goes into
+    TEMP_DIR/AUDIO_SUBDIR so the audio library stays one browsable place."""
+    monkeypatch.setattr(download_job.ytdlp_runner, "run_download", _fake_run_download)
+
+    folder = get_or_create_folder(db_session, "Ein Podcast")
+    job = create_job(
+        db_session,
+        user_id=test_user.id,
+        source_url="https://youtube.com/playlist?list=pod1",
+        source_type="playlist",
+        title="Ein Podcast",
+        quality="audio",
+        items=[
+            {"youtubeId": "pod_a", "title": "Folge A"},
+            {"youtubeId": "pod_b", "title": "Folge B"},
+        ],
+        folder_id=folder.id,
+    )
+
+    download_job.process_job(job.id)
+
+    db_session.expire_all()
+    audio_dir = os.path.join(settings.TEMP_DIR, settings.AUDIO_SUBDIR)
+    items = db_session.query(DownloadItem).filter_by(jobId=job.id).all()
+    assert len(items) == 2
+    for item in items:
+        assert item.status == Status.READY.value
+        # Flat: directly in the audio folder, not in a per-playlist subfolder.
+        assert os.path.dirname(item.mediaPath) == audio_dir
+
+
+def test_video_playlist_items_still_use_their_folder(db_session, test_user, monkeypatch):
+    monkeypatch.setattr(download_job.ytdlp_runner, "run_download", _fake_run_download)
+
+    folder = get_or_create_folder(db_session, "Eine Playlist")
+    job = create_job(
+        db_session,
+        user_id=test_user.id,
+        source_url="https://youtube.com/playlist?list=vid1",
+        source_type="playlist",
+        title="Eine Playlist",
+        quality="720p",
+        items=[{"youtubeId": "vid_a", "title": "Video A"}],
+        folder_id=folder.id,
+    )
+
+    download_job.process_job(job.id)
+
+    db_session.expire_all()
+    item = db_session.query(DownloadItem).filter_by(jobId=job.id).one()
+    assert os.path.dirname(item.mediaPath) == os.path.join(settings.TEMP_DIR, folder.dirName)
