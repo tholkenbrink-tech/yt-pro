@@ -252,6 +252,19 @@ def _process_item(db, job: DownloadJob, item: DownloadItem, profile: DownloadPro
         # DASH container into a plain MP4 one that AVFoundation will play.
         if not profile.audioOnly:
             args += ["--merge-output-format", profile.preferredContainer]
+        else:
+            # yt-dlp writes no tags at all by default, which is why every
+            # audio file showed an empty "Interpret". --embed-metadata fills
+            # title/date/etc. via ffmpeg, and the explicit meta_artist mapping
+            # pins the artist to the channel name instead of leaving it to
+            # yt-dlp's fallback chain (artist/creator/uploader/...), which
+            # prefers YouTube's own music-artist field wherever one exists.
+            # "channel or uploader" is the same order analyze_service uses for
+            # channelName, so the tag matches what the Mediathek displays.
+            args += [
+                "--embed-metadata",
+                "--parse-metadata", "%(channel,uploader)s:%(meta_artist)s",
+            ]
 
         args += [
             "--write-info-json",

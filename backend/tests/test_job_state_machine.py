@@ -205,3 +205,54 @@ def test_video_playlist_items_still_use_their_folder(db_session, test_user, monk
     db_session.expire_all()
     item = db_session.query(DownloadItem).filter_by(jobId=job.id).one()
     assert os.path.dirname(item.mediaPath) == os.path.join(settings.TEMP_DIR, folder.dirName)
+
+
+def test_audio_downloads_tag_the_channel_as_artist(db_session, test_user, monkeypatch):
+    """Without embedded tags every audio file shows an empty "Interpret".
+    The artist is pinned to the channel explicitly rather than left to
+    yt-dlp's fallback chain, which prefers YouTube's music-artist field."""
+    captured: list[list[str]] = []
+
+    def _capturing_run_download(args, on_progress_line=None):
+        captured.append(args)
+        return _fake_run_download(args, on_progress_line)
+
+    monkeypatch.setattr(download_job.ytdlp_runner, "run_download", _capturing_run_download)
+
+    job = create_job(
+        db_session,
+        user_id=test_user.id,
+        source_url="https://youtube.com/watch?v=tag001",
+        source_type="video",
+        quality="audio",
+        items=[{"youtubeId": "tag001", "title": "Mit Tags"}],
+    )
+    download_job.process_job(job.id)
+
+    args = captured[0]
+    assert "--embed-metadata" in args
+    # Same "channel or uploader" precedence analyze_service uses for
+    # channelName, so the tag matches what the app displays.
+    assert args[args.index("--parse-metadata") + 1] == "%(channel,uploader)s:%(meta_artist)s"
+
+
+def test_video_downloads_are_left_untagged(db_session, test_user, monkeypatch):
+    captured: list[list[str]] = []
+
+    def _capturing_run_download(args, on_progress_line=None):
+        captured.append(args)
+        return _fake_run_download(args, on_progress_line)
+
+    monkeypatch.setattr(download_job.ytdlp_runner, "run_download", _capturing_run_download)
+
+    job = create_job(
+        db_session,
+        user_id=test_user.id,
+        source_url="https://youtube.com/watch?v=tag002",
+        source_type="video",
+        quality="720p",
+        items=[{"youtubeId": "tag002", "title": "Ohne Tags"}],
+    )
+    download_job.process_job(job.id)
+
+    assert "--embed-metadata" not in captured[0]
