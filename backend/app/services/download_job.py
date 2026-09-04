@@ -264,6 +264,12 @@ def _process_item(db, job: DownloadJob, item: DownloadItem, profile: DownloadPro
             args += [
                 "--embed-metadata",
                 "--parse-metadata", "%(channel,uploader)s:%(meta_artist)s",
+                # Cover art. The conversion is not optional: YouTube serves
+                # webp, and the m4a cover atom takes only JPEG/PNG - without
+                # it the embed step just fails. yt-dlp deletes the converted
+                # image itself once it is embedded.
+                "--embed-thumbnail",
+                "--convert-thumbnails", "jpg",
             ]
 
         args += [
@@ -357,9 +363,17 @@ def _finalize_media_path(out_dir: str, current_path: str, desired_name: str, ite
     return target
 
 
+# Anything that can sit next to the finished media under the same item id.
+# Thumbnails matter since --embed-thumbnail arrived: yt-dlp removes the image
+# once it is embedded, but if that step ever fails the leftover would be the
+# first thing os.listdir hands back on a bad day, and the item would go READY
+# with its mediaPath pointing at a JPEG.
+_NON_MEDIA_SUFFIXES = (".part", ".info.json", ".jpg", ".jpeg", ".png", ".webp")
+
+
 def _find_produced_file(out_dir: str, item_id: str) -> Optional[str]:
     for name in os.listdir(out_dir):
-        if name.startswith(item_id) and not name.endswith((".part", ".info.json")):
+        if name.startswith(item_id) and not name.endswith(_NON_MEDIA_SUFFIXES):
             return os.path.join(out_dir, name)
     return None
 

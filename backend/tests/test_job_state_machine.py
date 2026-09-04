@@ -234,6 +234,9 @@ def test_audio_downloads_tag_the_channel_as_artist(db_session, test_user, monkey
     # Same "channel or uploader" precedence analyze_service uses for
     # channelName, so the tag matches what the app displays.
     assert args[args.index("--parse-metadata") + 1] == "%(channel,uploader)s:%(meta_artist)s"
+    # Cover art, converted because the m4a cover atom rejects YouTube's webp.
+    assert "--embed-thumbnail" in args
+    assert args[args.index("--convert-thumbnails") + 1] == "jpg"
 
 
 def test_video_downloads_are_left_untagged(db_session, test_user, monkeypatch):
@@ -256,3 +259,17 @@ def test_video_downloads_are_left_untagged(db_session, test_user, monkeypatch):
     download_job.process_job(job.id)
 
     assert "--embed-metadata" not in captured[0]
+
+
+def test_produced_file_lookup_ignores_a_leftover_thumbnail(tmp_path):
+    """--embed-thumbnail puts an image next to the media under the same item
+    id. yt-dlp deletes it after embedding, but if that ever fails the item
+    must not go READY with its mediaPath pointing at a JPEG."""
+    item_id = "abcd1234"
+    (tmp_path / f"{item_id}.jpg").write_bytes(b"not the media")
+    (tmp_path / f"{item_id}.m4a").write_bytes(b"the actual audio")
+
+    produced = download_job._find_produced_file(str(tmp_path), item_id)
+
+    assert produced is not None
+    assert produced.endswith(".m4a")
